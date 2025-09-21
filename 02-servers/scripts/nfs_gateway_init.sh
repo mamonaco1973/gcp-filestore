@@ -189,10 +189,10 @@ sudo sed -i "s/#netbios/netbios name=$netbios/g" /etc/samba/smb.conf
 
 # Overwrite NSSwitch config to prioritize SSSD + Winbind for user/group resolution
 cat <<EOT > /tmp/nsswitch.conf
-passwd:     files sss winbind
-group:      files sss winbind
+passwd:     compat systemd files sss winbind
+group:      compat systemd files sss winbind
 automount:  files sss winbind
-shadow:     files sss winbind
+shadow:     compat systemd files sss winbind
 hosts:      files dns myhostname
 bootparams: nisplus [NOTFOUND=return] files
 ethers:     files
