@@ -52,6 +52,31 @@ resource "google_compute_firewall" "allow_ssh" {
   source_ranges = ["0.0.0.0/0"]
 }
 
+# ================================================================================================
+# Firewall Rule: Allow SMB (Windows File Sharing)
+# ================================================================================================
+# Opens TCP port 445 for SMB access to VMs tagged with "allow-smb".
+#
+# Key Points:
+#   - Applies only to instances with "allow-smb" tag.
+#   - Source range is open to the internet (0.0.0.0/0) — ⚠️ restrict in production.
+# ================================================================================================
+resource "google_compute_firewall" "allow_smb" {
+  name    = "allow-smb"
+  network = "ad-vpc"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["445"]
+  }
+
+  # Tag-based targeting (applies only to instances with this tag)
+  target_tags = ["allow-smb"]
+
+  # ⚠️ Lab only; tighten for production
+  source_ranges = ["0.0.0.0/0"]
+}
+
 
 # ================================================================================================
 # Ubuntu VM: NFS Gateway + AD Join Client
@@ -119,7 +144,7 @@ resource "google_compute_instance" "nfs_gateway_instance" {
   # Firewall Tags
   # ----------------------------------------------------------------------------------------------
   # Applies both SSH and NFS firewall rules
-  tags = ["allow-ssh", "allow-nfs"]
+  tags = ["allow-ssh", "allow-nfs", "allow-smb"]
 }
 
 
