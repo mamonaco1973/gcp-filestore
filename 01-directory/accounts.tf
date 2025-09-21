@@ -22,7 +22,7 @@
 resource "random_password" "admin_password" {
   length           = 24
   special          = true
-  override_special = "_-."
+  override_special = "_."
 }
 
 resource "google_secret_manager_secret" "admin_secret" {
