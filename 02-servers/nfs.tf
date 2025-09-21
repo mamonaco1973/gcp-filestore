@@ -33,3 +33,7 @@ resource "google_compute_firewall" "allow_nfs" {
   source_ranges = ["0.0.0.0/0"] # ⚠️ Lab only; tighten to your subnet CIDR in production
 }
 
+output "filestore_ip" {
+  value = google_filestore_instance.nfs_server.networks[0].ip_addresses[0]
+}
+
