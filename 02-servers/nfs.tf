@@ -23,7 +23,7 @@ resource "google_filestore_instance" "nfs_server" {
   # - Location must be a zone (e.g., us-central1-b), not just a region.
   # - Project ID is pulled from local credentials.
   name     = "nfs-server"
-  tier     = "HIGH_SCALE_SSD"  # Updated from STANDARD
+  tier     = "ENTERPRISE"  
   location = "us-central1-b"
   project  = local.credentials.project_id
 
@@ -33,7 +33,7 @@ resource "google_filestore_instance" "nfs_server" {
   # - Minimum capacity for Filestore is 1 TB (1024 GiB).
   # - Export options define client access mode, root squash, allowed IP ranges, and NFS version.
   file_shares {
-    capacity_gb = 1024                 # 1 TB minimum
+    capacity_gb = 2560                 # 2.5 TB minimum                 
     name        = "filestore"
 
     nfs_export_options {
