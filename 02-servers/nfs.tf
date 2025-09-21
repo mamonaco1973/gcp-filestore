@@ -23,8 +23,8 @@ resource "google_filestore_instance" "nfs_server" {
   # - Location must be a zone (e.g., us-central1-b), not just a region.
   # - Project ID is pulled from local credentials.
   name     = "nfs-server"
-  tier     = "BASIC_HDD"             # Reverted to Basic HDD
-  location = "us-central1-b"         # Zonal, not regional
+  tier     = "BASIC_HDD"     # Reverted to Basic HDD
+  location = "us-central1-b" # Zonal, not regional
   project  = local.credentials.project_id
 
   # ----------------------------------------------------------------------------------------------
@@ -33,7 +33,7 @@ resource "google_filestore_instance" "nfs_server" {
   # - Minimum capacity for Basic Filestore is 1 TB (1024 GiB).
   # - Export options define client access mode, root squash, and allowed IP ranges.
   file_shares {
-    capacity_gb = 1024               # 1 TB minimum
+    capacity_gb = 1024 # 1 TB minimum
     name        = "filestore"
 
     nfs_export_options {

@@ -8,8 +8,8 @@
 #   - Local variables decode the JSON credentials for reuse (project_id, service account email).
 # ================================================================================================
 provider "google" {
-  project     = local.credentials.project_id  # Project ID extracted from credentials.json
-  credentials = file("../credentials.json")   # Path to service account credentials file
+  project     = local.credentials.project_id # Project ID extracted from credentials.json
+  credentials = file("../credentials.json")  # Path to service account credentials file
 }
 
 # ================================================================================================

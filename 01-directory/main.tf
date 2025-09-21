@@ -8,8 +8,8 @@
 #   - Project ID and service account email are extracted from the JSON file.
 # ================================================================================================
 provider "google" {
-  project     = local.credentials.project_id  # Project ID from decoded credentials
-  credentials = file("../credentials.json")   # Path to service account JSON
+  project     = local.credentials.project_id # Project ID from decoded credentials
+  credentials = file("../credentials.json")  # Path to service account JSON
 }
 
 # ================================================================================================

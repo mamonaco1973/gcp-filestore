@@ -22,8 +22,8 @@ module "mini_ad" {
 
   # Ensure NAT + route association exist before bootstrapping (for package repos, etc.)
   depends_on = [google_compute_subnetwork.ad_subnet,
-                google_compute_router.ad_router,
-                google_compute_router_nat.ad_nat]
+    google_compute_router.ad_router,
+  google_compute_router_nat.ad_nat]
 }
 
 # ==========================================================================================
