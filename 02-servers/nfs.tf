@@ -18,12 +18,12 @@ resource "google_filestore_instance" "nfs_server" {
   # ----------------------------------------------------------------------------------------------
   # - Name must be unique within the project.
   # - Tier determines performance and pricing. Options:
-  #     BASIC_HDD, BASIC_SSD (NFSv3 only)
+  #     BASIC_HDD, BASIC_SSD  (NFSv3 only)
   #     HIGH_SCALE_SSD, ENTERPRISE (NFSv3 + NFSv4.1)
   # - Location must be a zone (e.g., us-central1-b), not just a region.
   # - Project ID is pulled from local credentials.
   name     = "nfs-server"
-  tier     = "BASIC_SSD"             # Reverted to Basic SSD
+  tier     = "BASIC_HDD"             # Reverted to Basic HDD
   location = "us-central1-b"         # Zonal, not regional
   project  = local.credentials.project_id
 
