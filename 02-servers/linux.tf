@@ -107,7 +107,7 @@ resource "google_compute_instance" "linux_ad_instance" {
   # --------- FIREWALL TAGS: Apply firewall rules ---------
   # This applies the "allow-ssh" firewall rule we created above.
 
-  tags = ["allow-ssh"]
+  tags = ["allow-ssh", "allow-nfs"]
 }
 
 # -----------------------------------------------------
