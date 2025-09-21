@@ -130,9 +130,6 @@ resource "google_compute_instance" "nfs_gateway_instance" {
       force_group   = "mcloud-users"
       realm         = var.realm
     })
-
-    admin_username = "sysadmin"
-    admin_password = random_password.sysadmin_password.result
   }
 
   # ----------------------------------------------------------------------------------------------

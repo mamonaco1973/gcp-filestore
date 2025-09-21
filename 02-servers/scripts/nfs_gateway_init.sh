@@ -58,7 +58,7 @@ echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65
 | sudo tee -a /etc/fstab
 
 systemctl daemon-reload                              # Reload units again
-mount /home                                          # Mount /home from NFS
+#mount /home                                          # Mount /home from NFS
 
 # ---------------------------------------------------------------------------------
 # Section 3: Join the Active Directory Domain
