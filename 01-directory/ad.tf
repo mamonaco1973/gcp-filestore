@@ -8,17 +8,17 @@
 # ==========================================================================================
 
 module "mini_ad" {
-  source            = "../modules/mini-ad"                   # Path to the mini-ad Terraform module
-  netbios           = var.netbios                            # NetBIOS domain name (e.g., MCLOUD)
-  network           = google_compute_network.ad_vpc.id       # VPC where the AD will reside
-  realm             = var.realm                              # Kerberos realm (usually UPPERCASE DNS domain)
-  users_json        = local.users_json                       # JSON blob of users and passwords (built below)
-  user_base_dn      = var.user_base_dn                       # Base DN for user accounts in LDAP
-  ad_admin_password = random_password.admin_password.result  # Randomized AD administrator password
-  dns_zone          = var.dns_zone                           # DNS zone (e.g., mcloud.mikecloud.com)
-  subnetwork        = google_compute_subnetwork.ad_subnet.id # Subnet for AD VM placement
-  email             = local.service_account_email            # Service account email
-  machine_type      = var.machine_type                       # Machine type for AD VM
+  source            = "github.com/mamonaco1973/module-gcp-mini-ad" # Path to the mini-ad Terraform module
+  netbios           = var.netbios                                  # NetBIOS domain name (e.g., MCLOUD)
+  network           = google_compute_network.ad_vpc.id             # VPC where the AD will reside
+  realm             = var.realm                                    # Kerberos realm (usually UPPERCASE DNS domain)
+  users_json        = local.users_json                             # JSON blob of users and passwords (built below)
+  user_base_dn      = var.user_base_dn                             # Base DN for user accounts in LDAP
+  ad_admin_password = random_password.admin_password.result        # Randomized AD administrator password
+  dns_zone          = var.dns_zone                                 # DNS zone (e.g., mcloud.mikecloud.com)
+  subnetwork        = google_compute_subnetwork.ad_subnet.id       # Subnet for AD VM placement
+  email             = local.service_account_email                  # Service account email
+  machine_type      = var.machine_type                             # Machine type for AD VM
 
   # Ensure NAT + route association exist before bootstrapping (for package repos, etc.)
   depends_on = [google_compute_subnetwork.ad_subnet,
