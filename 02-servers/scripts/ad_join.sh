@@ -31,31 +31,28 @@ apt-get install less unzip realmd sssd-ad sssd-tools libnss-sss \
 # Section 2: Mount NFS file system
 # ---------------------------------------------------------------------------------
 
-# Create mount point for NFS
+# Create mount point for NFS root
 mkdir -p /nfs
 
-# Root filestore
-echo "${nfs_server_ip}:/filestore /nfs nfs4 \
-rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" \
+# Add root filestore mount to /etc/fstab (NFSv3, safe options)
+echo "${nfs_server_ip}:/filestore /nfs nfs \
+vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
 | tr -d '\n' | sudo tee -a /etc/fstab
-
-# Add root filestore mount to /etc/fstab
-systemctl daemon-reload
 
 # Reload systemd mounts and mount /nfs
 systemctl daemon-reload
 mount /nfs
 
-# Create subdirectories
+# Create subdirectories under /nfs
 mkdir -p /nfs/home
 mkdir -p /nfs/data
 
-# Add /home mount to /etc/fstab
-echo "${nfs_server_ip}:/filestore/home /home nfs4 \
-rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" \
+# Add /home mount to /etc/fstab (NFSv3, safe options)
+echo "${nfs_server_ip}:/filestore/home /home nfs \
+vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
 | tr -d '\n' | sudo tee -a /etc/fstab
 
-# Reload systemd mounts again
+# Reload systemd mounts again and mount /home
 systemctl daemon-reload
 mount /home
 

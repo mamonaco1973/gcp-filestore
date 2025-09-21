@@ -1,5 +1,5 @@
 # ================================================================================================
-# Google Cloud Filestore (High-Scale NFS Server) with Firewall Rules
+# Google Cloud Filestore (Basic NFS Server) with Firewall Rules
 # ================================================================================================
 # Provisions a Filestore instance for NFS storage and secures access via a firewall rule.
 #
@@ -7,7 +7,7 @@
 #   - Filestore provides fully managed NFS storage in GCP.
 #   - Minimum size = 1 TB (1024 GiB).
 #   - Instance is deployed in a specific zone (not region-wide).
-#   - High-Scale SSD supports both NFSv3 and NFSv4.1.
+#   - Basic tiers (HDD or SSD) support only NFSv3.
 #   - NFS access allowed on port 2049 (TCP + UDP).
 #   - Source range is open to 0.0.0.0/0 for lab use; restrict in production.
 # ================================================================================================
@@ -23,23 +23,23 @@ resource "google_filestore_instance" "nfs_server" {
   # - Location must be a zone (e.g., us-central1-b), not just a region.
   # - Project ID is pulled from local credentials.
   name     = "nfs-server"
-  tier     = "ENTERPRISE"  
-  location = "us-central1"
+  tier     = "BASIC_SSD"             # Reverted to Basic SSD
+  location = "us-central1-b"         # Zonal, not regional
   project  = local.credentials.project_id
 
   # ----------------------------------------------------------------------------------------------
   # File Share Configuration
   # ----------------------------------------------------------------------------------------------
-  # - Minimum capacity for Filestore is 1 TB (1024 GiB).
-  # - Export options define client access mode, root squash, allowed IP ranges, and NFS version.
+  # - Minimum capacity for Basic Filestore is 1 TB (1024 GiB).
+  # - Export options define client access mode, root squash, and allowed IP ranges.
   file_shares {
-    capacity_gb = 2560                 # 2.5 TB minimum                 
+    capacity_gb = 1024               # 1 TB minimum
     name        = "filestore"
 
     nfs_export_options {
-      access_mode = "READ_WRITE"       # Allow read/write access
-      squash_mode = "NO_ROOT_SQUASH"   # Preserve root privileges on clients
-      ip_ranges   = ["0.0.0.0/0"]      # ⚠️ Lab only; restrict in production
+      access_mode = "READ_WRITE"     # Allow read/write access
+      squash_mode = "NO_ROOT_SQUASH" # Preserve root privileges on clients
+      ip_ranges   = ["0.0.0.0/0"]    # ⚠️ Lab only; restrict in production
     }
   }
 
