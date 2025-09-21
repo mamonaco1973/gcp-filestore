@@ -54,10 +54,10 @@ mount /nfs                                           # Mount root NFS
 mkdir -p /nfs/home /nfs/data                         # Create standard subdirectories
 
 # Add /home mapping to NFS (user homes on NFS share)
-echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
-| sudo tee -a /etc/fstab
+#echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
+#| sudo tee -a /etc/fstab
 
-systemctl daemon-reload                              # Reload units again
+3systemctl daemon-reload                              # Reload units again
 #mount /home                                          # Mount /home from NFS
 
 # ---------------------------------------------------------------------------------
