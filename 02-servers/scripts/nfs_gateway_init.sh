@@ -54,11 +54,11 @@ mount /nfs                                           # Mount root NFS
 mkdir -p /nfs/home /nfs/data                         # Create standard subdirectories
 
 # Add /home mapping to NFS (user homes on NFS share)
-#echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
-#| sudo tee -a /etc/fstab
+echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
+| sudo tee -a /etc/fstab
 
-#systemctl daemon-reload                              # Reload units again
-#mount /home                                          # Mount /home from NFS
+systemctl daemon-reload                              # Reload units again
+mount /home                                          # Mount /home from NFS
 
 # ---------------------------------------------------------------------------------
 # Section 3: Join the Active Directory Domain
@@ -182,9 +182,9 @@ sudo cp /tmp/smb.conf /etc/samba/smb.conf
 sudo rm /tmp/smb.conf
 
 # Dynamically set NetBIOS name from hostname (uppercase, 15-char limit)
-head /etc/hostname -c 15 > /tmp/netbios-name
-value=$(</tmp/netbios-name)
-export netbios="$${value^^}"
+
+value=$(hostname | cut -c1-15)
+netbios=$(echo "$value" | tr '[:lower:]' '[:upper:]')
 sudo sed -i "s/#netbios/netbios name=$netbios/g" /etc/samba/smb.conf
 
 # Overwrite NSSwitch config to prioritize SSSD + Winbind for user/group resolution
