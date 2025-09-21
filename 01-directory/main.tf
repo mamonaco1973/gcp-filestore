@@ -1,15 +1,27 @@
+# ================================================================================================
 # Google Cloud Provider Configuration
-# Configures the Google Cloud provider using project details and credentials from a JSON file.
+# ================================================================================================
+# Configures the Google Cloud provider for Terraform.
+#
+# Key Points:
+#   - Uses service account credentials stored in `../credentials.json`.
+#   - Project ID and service account email are extracted from the JSON file.
+# ================================================================================================
 provider "google" {
-  project     = local.credentials.project_id # Specifies the project ID extracted from the decoded credentials file.
-  credentials = file("../credentials.json")  # Path to the credentials JSON file for Google Cloud authentication.
+  project     = local.credentials.project_id  # Project ID from decoded credentials
+  credentials = file("../credentials.json")   # Path to service account JSON
 }
 
+# ================================================================================================
 # Local Variables
-# Reads and decodes the credentials JSON file to extract useful details like project ID and service account email.
+# ================================================================================================
+# Decodes the credentials file for reuse across modules.
+#
+# Key Points:
+#   - `credentials` stores the full JSON as a map.
+#   - `service_account_email` references the service account identity.
+# ================================================================================================
 locals {
-  credentials           = jsondecode(file("../credentials.json")) # Decodes the JSON file into a map for easier access.
-  service_account_email = local.credentials.client_email          # Extracts the service account email from the decoded JSON map.
+  credentials           = jsondecode(file("../credentials.json"))
+  service_account_email = local.credentials.client_email
 }
-
-
