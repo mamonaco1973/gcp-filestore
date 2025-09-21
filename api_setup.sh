@@ -21,3 +21,5 @@ gcloud services enable firestore.googleapis.com
 gcloud services enable cloudresourcemanager.googleapis.com
 gcloud services enable storage.googleapis.com
 gcloud services enable secretmanager.googleapis.com
+gcloud services enable file.googleapis.com
+
