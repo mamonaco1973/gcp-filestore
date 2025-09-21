@@ -92,6 +92,7 @@ resource "google_compute_instance" "linux_ad_instance" {
   
     startup-script = templatefile("./scripts/ad_join.sh", {
       domain_fqdn   = "mcloud.mikecloud.com"
+      nfs_server_ip = google_filestore_instance.nfs_server.networks[0].ip_addresses[0]
     })
   }
 

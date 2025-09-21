@@ -31,19 +31,19 @@ apt-get install less unzip realmd sssd-ad sssd-tools libnss-sss \
 # Section 2: Mount NFS file system
 # ---------------------------------------------------------------------------------
 
-mkdir -p /nfs
-echo "${nfs_server_ip}:/filestore /nfs nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | \ 
-    sudo tee -a /etc/fstab
-systemctl daemon-reload
+# mkdir -p /nfs
+# echo "${nfs_server_ip}:/filestore /nfs nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | sudo tee -a /etc/fstab
+# systemctl daemon-reload
+# mount /nfs
 
-mount /nfs
-mkdir -p /nfs/home
-mkdir -p /nfs/data
 
-echo "${nfs_server_ip}:/filestore/home /home nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | \ 
-    sudo tee -a /etc/fstab
-systemctl daemon-reload
-mount /home
+# mkdir -p /nfs/home
+# mkdir -p /nfs/data
+
+# echo "${nfs_server_ip}:/filestore/home /home nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | \ 
+#     sudo tee -a /etc/fstab
+# systemctl daemon-reload
+# mount /home
 
 # ---------------------------------------------------------------------------------
 # Section 2 Join the Active Directory Domain
