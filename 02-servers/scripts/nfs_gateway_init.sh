@@ -6,6 +6,17 @@
 # Designed for cloud-based Linux environments joining a Samba AD domain.
 # ================================================================================================
 
+FLAG_FILE="/root/.nfs_provisioned"
+
+#--------------------------------------------------------------------
+# Prevent join from happening after first boot
+#--------------------------------------------------------------------
+
+if [ -f "$FLAG_FILE" ]; then
+  echo "Provisioning already completed — skipping." >> /root/userdata.log 2>&1
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------------
 # Section 1: Update the OS and Install Required Packages
 # ---------------------------------------------------------------------------------
@@ -233,3 +244,6 @@ cd /nfs
 git clone https://github.com/mamonaco1973/gcp-filestore.git
 chmod -R 775 gcp-filestore
 chgrp -R mcloud-users gcp-filestore
+
+uptime >> /root/userdata.log 2>&1
+touch "$FLAG_FILE"
