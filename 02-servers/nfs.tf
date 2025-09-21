@@ -24,7 +24,7 @@ resource "google_filestore_instance" "nfs_server" {
   # - Project ID is pulled from local credentials.
   name     = "nfs-server"
   tier     = "ENTERPRISE"  
-  location = "us-central1-b"
+  location = "us-central1"
   project  = local.credentials.project_id
 
   # ----------------------------------------------------------------------------------------------
