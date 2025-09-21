@@ -171,7 +171,7 @@ read only = No
 inherit acls = Yes
 
 [nfs]
-comment = Mounted EFS area
+comment = Mounted NFS area
 path = /nfs
 read only = no
 guest ok = no
