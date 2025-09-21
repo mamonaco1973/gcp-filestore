@@ -57,7 +57,7 @@ mkdir -p /nfs/home /nfs/data                         # Create standard subdirect
 #echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
 #| sudo tee -a /etc/fstab
 
-3systemctl daemon-reload                              # Reload units again
+#systemctl daemon-reload                              # Reload units again
 #mount /home                                          # Mount /home from NFS
 
 # ---------------------------------------------------------------------------------
@@ -189,10 +189,10 @@ sudo sed -i "s/#netbios/netbios name=$netbios/g" /etc/samba/smb.conf
 
 # Overwrite NSSwitch config to prioritize SSSD + Winbind for user/group resolution
 cat <<EOT > /tmp/nsswitch.conf
-passwd:     compat systemd files sss winbind
-group:      compat systemd files sss winbind
+passwd:     files sss winbind
+group:      files sss winbind
 automount:  files sss winbind
-shadow:     compat systemd files sss winbind
+shadow:     files sss winbind
 hosts:      files dns myhostname
 bootparams: nisplus [NOTFOUND=return] files
 ethers:     files
