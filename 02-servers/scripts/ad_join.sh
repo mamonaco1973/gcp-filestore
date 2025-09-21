@@ -35,9 +35,8 @@ apt-get install less unzip realmd sssd-ad sssd-tools libnss-sss \
 mkdir -p /nfs
 
 # Add root filestore mount to /etc/fstab (NFSv3, safe options)
-echo "${nfs_server_ip}:/filestore /nfs nfs \
-vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
-| tr -d '\n' | sudo tee -a /etc/fstab
+echo "${nfs_server_ip}:/filestore /nfs nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
+| sudo tee -a /etc/fstab
 
 # Reload systemd mounts and mount /nfs
 systemctl daemon-reload
@@ -48,9 +47,8 @@ mkdir -p /nfs/home
 mkdir -p /nfs/data
 
 # Add /home mount to /etc/fstab (NFSv3, safe options)
-echo "${nfs_server_ip}:/filestore/home /home nfs \
-vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
-| tr -d '\n' | sudo tee -a /etc/fstab
+echo "${nfs_server_ip}:/filestore/home /home nfs vers=3,rw,hard,noatime,rsize=65536,wsize=65536,timeo=600,_netdev 0 0" \
+| sudo tee -a /etc/fstab
 
 # Reload systemd mounts again and mount /home
 systemctl daemon-reload
@@ -126,5 +124,27 @@ sudo systemctl restart ssh
 # "linux-admins" AD group.
 sudo echo "%linux-admins ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/10-linux-admins
 
+# ---------------------------------------------------------------------------------
+# Section 9: Enforce Home Directory Permissions
+# ---------------------------------------------------------------------------------
+# Force new home directories to have mode 0700 (private)
+sudo sed -i 's/^\(\s*HOME_MODE\s*\)[0-9]\+/\10700/' /etc/login.defs
 
+# Trigger home directory creation for specific test accounts
 
+su -c "exit" rpatel
+su -c "exit" jsmith
+su -c "exit" akumar
+su -c "exit" edavis
+
+# Set NFS directory ownership and permissions
+chgrp mcloud-users /nfs
+chgrp mcloud-users /nfs/data
+chmod 770 /nfs
+chmod 770 /nfs/data
+chmod 700 /home/*
+
+cd /nfs
+git clone https://github.com/mamonaco1973/azure-nfs-files.git
+chmod -R 775 azure-nfs-files
+chgrp -R mcloud-users azure-nfs-files

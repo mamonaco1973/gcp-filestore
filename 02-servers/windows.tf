@@ -124,6 +124,7 @@ resource "google_compute_instance" "windows_ad_instance" {
   metadata = {
     windows-startup-script-ps1 = templatefile("./scripts/ad_join.ps1", {
       domain_fqdn = "mcloud.mikecloud.com"
+      nfs_gateway = google_compute_instance.nfs_gateway_instance.network_interface[0].network_ip
     })
 
     admin_username = "sysadmin"
