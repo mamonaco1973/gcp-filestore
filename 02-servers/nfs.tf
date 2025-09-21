@@ -6,7 +6,7 @@ resource "google_filestore_instance" "nfs_server" {
 
   file_shares {
     capacity_gb = 1024                 # 1 TB minimum
-    name        = "nfs-share"
+    name        = "nfs"
   }
 
   networks {
