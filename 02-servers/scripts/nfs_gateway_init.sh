@@ -187,24 +187,11 @@ value=$(hostname | cut -c1-15)
 netbios=$(echo "$value" | tr '[:lower:]' '[:upper:]')
 sudo sed -i "s/#netbios/netbios name=$netbios/g" /etc/samba/smb.conf
 
-# Overwrite NSSwitch config to prioritize SSSD + Winbind for user/group resolution
-cat <<EOT > /tmp/nsswitch.conf
-passwd:     files sss winbind
-group:      files sss winbind
-automount:  files sss winbind
-shadow:     files sss winbind
-hosts:      files dns myhostname
-bootparams: nisplus [NOTFOUND=return] files
-ethers:     files
-netmasks:   files
-networks:   files
-protocols:  files
-rpc:        files
-services:   files sss
-netgroup:   files sss
-publickey:  nisplus
-aliases:    files nisplus
-EOT
+# Add 'sss' and 'winbind' to the `passwd` line
+sudo sed -i '/^passwd:/ s/$/ sss winbind/' /etc/nsswitch.conf
+
+# Add 'sss' and 'winbind' to the `group` line
+sudo sed -i '/^group:/ s/$/ sss winbind/' /etc/nsswitch.conf
 
 sudo cp /tmp/nsswitch.conf /etc/nsswitch.conf
 sudo rm /tmp/nsswitch.conf
