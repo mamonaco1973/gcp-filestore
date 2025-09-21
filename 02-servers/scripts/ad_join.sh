@@ -31,19 +31,34 @@ apt-get install less unzip realmd sssd-ad sssd-tools libnss-sss \
 # Section 2: Mount NFS file system
 # ---------------------------------------------------------------------------------
 
-# mkdir -p /nfs
-# echo "${nfs_server_ip}:/filestore /nfs nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | sudo tee -a /etc/fstab
-# systemctl daemon-reload
-# mount /nfs
+# Create mount point for NFS
+mkdir -p /nfs
 
+# Add root filestore mount to /etc/fstab
+echo "${nfs_server_ip}:/filestore  /nfs  nfs4 \
+    rw,hard,noatime,nconnect=8, \
+    rsize=1048576,wsize=1048576, \
+    timeo=600,retrans=2,_netdev 0 0" \
+  | sudo tee -a /etc/fstab
 
-# mkdir -p /nfs/home
-# mkdir -p /nfs/data
+# Reload systemd mounts and mount /nfs
+systemctl daemon-reload
+mount /nfs
 
-# echo "${nfs_server_ip}:/filestore/home /home nfs4 rw,hard,noatime,nconnect=8,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev 0 0" | \ 
-#     sudo tee -a /etc/fstab
-# systemctl daemon-reload
-# mount /home
+# Create subdirectories
+mkdir -p /nfs/home
+mkdir -p /nfs/data
+
+# Add /home mount to /etc/fstab
+echo "${nfs_server_ip}:/filestore/home  /home  nfs4 \
+    rw,hard,noatime,nconnect=8, \
+    rsize=1048576,wsize=1048576, \
+    timeo=600,retrans=2,_netdev 0 0" \
+  | sudo tee -a /etc/fstab
+
+# Reload systemd mounts again
+systemctl daemon-reload
+#mount /home
 
 # ---------------------------------------------------------------------------------
 # Section 2 Join the Active Directory Domain
