@@ -7,6 +7,12 @@ resource "google_filestore_instance" "nfs_server" {
   file_shares {
     capacity_gb = 1024                 # 1 TB minimum
     name        = "filestore"
+    
+    nfs_export_options {
+      access_mode   = "READ_WRITE"
+      squash_mode   = "NO_ROOT_SQUASH"
+      ip_ranges     = ["0.0.0.0/0"] 
+    }
   }
 
   networks {
