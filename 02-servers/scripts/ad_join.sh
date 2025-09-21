@@ -105,9 +105,68 @@ cat <<EOT > /tmp/smb.conf
 [global]
 workgroup = ${netbios}
 security = ads
-...
+
+# Performance tuning
+strict sync = no
+sync always = no
+aio read size = 1
+aio write size = 1
+use sendfile = yes
+
+passdb backend = tdbsam
+
+# Printing subsystem (legacy, usually unused in cloud)
+printing = cups
+printcap name = cups
+load printers = yes
+cups options = raw
+
+kerberos method = secrets and keytab
+
+# Default user template
+template homedir = /home/%U
+template shell = /bin/bash
+#netbios 
+
+# File creation masks
+create mask = 0770
+force create mode = 0770
+directory mask = 0770
+force group = ${force_group}
+
+realm = ${realm}
+
+# ID mapping configuration
+idmap config ${realm} : backend = sss
+idmap config ${realm} : range = 10000-1999999999
+idmap config * : backend = tdb
+idmap config * : range = 1-9999
+
+# Winbind options
+min domain uid = 0
+winbind use default domain = yes
+winbind normalize names = yes
+winbind refresh tickets = yes
+winbind offline logon = yes
+winbind enum groups = yes
+winbind enum users = yes
+winbind cache time = 30
+idmap cache time = 60
+
+[homes]
+comment = Home Directories
+browseable = No
+read only = No
+inherit acls = Yes
+
+[nfs]
+comment = Mounted EFS area
+path = /nfs
+read only = no
+guest ok = no
 EOT
 
+# Deploy Samba configuration
 sudo cp /tmp/smb.conf /etc/samba/smb.conf
 sudo rm /tmp/smb.conf
 
@@ -120,7 +179,20 @@ sudo sed -i "s/#netbios/netbios name=$netbios/g" /etc/samba/smb.conf
 # Overwrite NSSwitch config to prioritize SSSD + Winbind for user/group resolution
 cat <<EOT > /tmp/nsswitch.conf
 passwd:     files sss winbind
-...
+group:      files sss winbind
+automount:  files sss winbind
+shadow:     files sss winbind
+hosts:      files dns myhostname
+bootparams: nisplus [NOTFOUND=return] files
+ethers:     files
+netmasks:   files
+networks:   files
+protocols:  files
+rpc:        files
+services:   files sss
+netgroup:   files sss
+publickey:  nisplus
+aliases:    files nisplus
 EOT
 
 sudo cp /tmp/nsswitch.conf /etc/nsswitch.conf
@@ -150,8 +222,10 @@ su -c "exit" akumar
 su -c "exit" edavis
 
 # Fix NFS directory ownership + permissions for group collaboration
-chgrp mcloud-users /nfs /nfs/data
-chmod 770 /nfs /nfs/data
+chgrp mcloud-users /nfs
+chgrp mcloud-users /nfs/data
+chmod 770 /nfs
+chmod 770 /nfs/data
 chmod 700 /home/*
 
 # Clone helper repo into /nfs and apply group permissions
