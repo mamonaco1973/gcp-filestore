@@ -93,7 +93,7 @@ resource "google_compute_firewall" "allow_smb" {
 # ================================================================================================
 resource "google_compute_instance" "nfs_gateway_instance" {
   name         = "nfs-gateway-${random_string.vm_suffix.result}"
-  machine_type = "e2-medium"
+  machine_type = "e2-standard-2" 
   zone         = "us-central1-a"
 
   # ----------------------------------------------------------------------------------------------
