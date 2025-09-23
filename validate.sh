@@ -5,7 +5,7 @@ NFS_IP=$(gcloud compute instances list \
   --filter="name~'^nfs-gateway'" \
   --format="value(networkInterfaces.accessConfigs[0].natIP)")
 
-echo "NOTE: nfs-gateway public IP address is $NFS_IP"
+echo "NOTE: Linux nfs-gateway public IP address is $NFS_IP"
 
 
 WIN_IP=$(gcloud compute instances list \
