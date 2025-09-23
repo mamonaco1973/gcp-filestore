@@ -21,8 +21,8 @@ fi
 # Section 1: Update the OS and Install Required Packages
 # ---------------------------------------------------------------------------------
 
-apt-get update -y                                   # Refresh package lists for latest versions
-export DEBIAN_FRONTEND=noninteractive               # Prevent interactive prompts during installs
+apt-get update -y >> /root/userdata.log 2>&1   # Refresh package lists for latest versions
+export DEBIAN_FRONTEND=noninteractive          # Prevent interactive prompts during installs
 
 # Install packages for AD integration, NFS, and Samba:
 # - realmd / sssd-* / adcli: Enable AD discovery/join and user authentication
