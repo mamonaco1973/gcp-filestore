@@ -87,6 +87,6 @@ resource "google_compute_firewall" "allow_nfs" {
 # Exposes the Filestore instance’s private IP address for use in mount commands.
 # Example mount path: <IP_ADDRESS>:/filestore
 # ================================================================================================
-output "filestore_ip" {
-  value = google_filestore_instance.nfs_server.networks[0].ip_addresses[0]
-}
+# output "filestore_ip" {
+#   value = google_filestore_instance.nfs_server.networks[0].ip_addresses[0]
+# }
