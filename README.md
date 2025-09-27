@@ -43,18 +43,18 @@ The mini-AD environment (Samba 4 on Ubuntu) provides Active Directory authentica
 
 > These are illustrative monthly costs based on the minimum instance size and *approximate* public pricing for a typical US region (e.g., `us-central1`). **Actual costs vary by region.**
 
-| Tier | Availability | **Minimum capacity** | Approx **$/GiB-month** | **Est. monthly @ min size** |
+| Tier | Availability | **Minimum capacity** | **Approx $/GiB-month** | **Est. monthly @ min size** |
 | :--- | :--- | :---: | :---: | :---: |
-| **Basic HDD** | Zonal | **1 TiB** | $\approx\mathbf{\$0.20}$ | $\approx\mathbf{\$204.80}$ |
-| **Basic SSD** | Zonal | **2.5 TiB** | $\approx\$0.30$ | $\approx\$768.00$ |
-| **Zonal** (Default perf) | Zonal | **1 TiB** | $\approx\mathbf{\$0.28}$ | $\approx\mathbf{\$286.72}$ |
-| **Regional** (Default perf) | Regional | **1 TiB** | $\approx\$0.45$ | $\approx\$460.80$ |
-| **Enterprise** | Regional | **1 TiB** | $\approx\$0.45$ | $\approx\$460.80$ |
+| **Basic HDD** | Zonal | **1 TiB** | ~**$0.20** | ~**$204.80** |
+| **Basic SSD** | Zonal | **2.5 TiB** | ~$0.30 | ~$768.00 |
+| **Zonal** (Default perf) | Zonal | **1 TiB** | ~**$0.28** | ~**$286.72** |
+| **Regional** (Default perf) | Regional | **1 TiB** | ~$0.45 | ~$460.80 |
+| **Enterprise** | Regional | **1 TiB** | ~$0.45 | ~$460.80 |
 
 #### Key Cost Notes:
 
-* **Custom Performance (Zonal/Regional):** Selecting **Custom Performance** lowers the $\text{\$/GiB-month}$ charge but introduces two new hourly fees: a **per-instance hourly charge** and a **per-IOPS hourly charge**. The total cost will depend on the custom IOPS you provision.
-* **Basic Tiers:** The Basic tiers (HDD/SSD) often have a **per-GiB rate AND an hourly instance fee**, which is factored into the approximate blended $\text{\$/GiB-month}$ rate shown above.
+* **Custom Performance (Zonal/Regional):** Selecting **Custom Performance** lowers the $/GiB-month charge but introduces two new hourly fees: a **per-instance hourly charge** and a **per-IOPS hourly charge**. The total cost will depend on the custom IOPS you provision.
+* **Basic Tiers:** The Basic tiers (HDD/SSD) often have a **per-GiB rate AND an hourly instance fee**, which is factored into the approximate blended $/GiB-month rate shown above.
 * **NFSv4.1:** To utilize features like **Kerberos/Active Directory integration** and stronger security, you must select **Zonal, Regional, or Enterprise**. Basic tiers are **NFSv3-only**.
 
 ## Prerequisites
