@@ -1,35 +1,61 @@
-# GCP Mini Active Directory  
+# GCP Mini Active Directory with Filestore: SMB & NFS File Sharing
 
-This project is a follow-up to our full **Google Cloud Managed Microsoft AD** project. While managed AD services are well-suited for production, they can be expensive for prototyping and require long provisioning times. The **“mini-AD”** approach provides a faster, lower-cost alternative that delivers a fully functional Active Directory environment that builds much quicker.  
+This project extends the original **GCP Mini Active Directory** lab by integrating **Filestore** as a managed shared storage backend. Instead of relying only on local disks or standalone file servers, this solution demonstrates how to expose Filestore storage in two ways:  
 
-Using **Terraform, Samba 4, and automated configuration scripts**, this deployment provisions an **Ubuntu-based Compute Engine VM** that serves as both a **Domain Controller and DNS server**. It integrates into a custom **Google Cloud VPC** with private subnets, **firewall rules** for AD/DC traffic, and **Secret Manager** for secure credential storage.  
+1. **Direct NFS Mounts on Linux Clients** – Linux machines joined to the mini-AD domain mount Filestore via the NFS 3.0 or 4.1 protocol for scalable, POSIX-compliant storage.  
+2. **SMB Access via NFS Gateway** – Windows machines joined to the mini-AD domain connect to a Samba-based NFS gateway, which translates NFS exports from Filestore into SMB shares, enabling Active Directory authentication and group-based access.  
 
-Once the infrastructure is deployed, additional **Windows and Linux VMs** are provisioned into the same VPC and automatically joined to the domain at boot. The join process is handled by custom scripts (`ad_join.ps1` for Windows and `ad_join.sh` for Linux) that configure authentication and domain integration.  
+The mini-AD environment (Samba 4 on Ubuntu) provides Active Directory authentication and DNS services. Filestore provides fully managed NFS storage tiers with flexible performance and capacity options. Together, they enable a hybrid setup where both Linux and Windows domain-joined clients can consume GCP-native storage seamlessly.  
 
-This solution is ideal for **labs, demos, and development environments** where Active Directory integration is needed without the cost and provisioning time of Google Managed Microsoft AD. It is **not intended for production use**, but provides a complete, repeatable environment for testing AD-connected workloads in GCP.  
+![GCP diagram](gcp-filestore.png)
 
-See the `Limitations` section for a list of caveats.  
+## ☁️ Filestore Service Tiers Overview
 
-![GCP diagram](gcp-mini-directory.png)  
+**Filestore** is Google Cloud’s managed **NFS** (Network Attached Storage): a shared file system exposed over NFS to your VMs and GKE clusters without you needing to run a fileserver yourself. You are billed for **provisioned capacity** (not used bytes), can scale capacity, and choose tiers based on your needs for cost, performance, and availability.
 
-## Limitations  
+---
 
-While the GCP mini-AD deployment provides a functional and cost-effective Active Directory environment for labs, demos, and development, it does not include many of the advanced features found in **Google Cloud Managed Microsoft AD** or a fully managed Windows Server AD deployment:  
+### ⚙️ Capacity Ranges (Min → Max)
 
-### Issues Related to PaaS vs IaaS (Operational & Platform-Level)  
-- **High Availability & Multi-Region** – Managed Microsoft AD provisions redundant domain controllers across zones automatically; mini-AD is a single VM without failover.  
-- **Automated Backups & Snapshots** – Managed AD handles scheduled backups; mini-AD requires manual snapshots or custom backup workflows.  
-- **Automatic Patching** – Managed AD auto-patches Windows Server and AD services; mini-AD requires manual updates of Ubuntu, Samba, and Kerberos.  
-- **Security Hardening & Compliance** – Managed AD is pre-hardened and validated for compliance frameworks; mini-AD security depends entirely on your configuration.  
-- **24/7 Google Support** – Managed AD includes full Google Cloud support; mini-AD requires you to manage and troubleshoot all aspects yourself.  
-- **Monitoring & Metrics** – Managed AD integrates with Cloud Monitoring and Logging; mini-AD requires you to manually configure monitoring and log forwarding.  
+| Tier | Minimum Size | Maximum Size | Scaling Increments | Location Type |
+| :--- | :--- | :--- | :--- | :--- |
+| **Basic HDD** | **1 TiB** | **63.9 TiB** | 1 GiB (Up only) | Zonal |
+| **Basic SSD** | **2.5 TiB** | **63.9 TiB** | 1 GiB (Up only) | Zonal |
+| **Zonal** | **1 TiB** | **100 TiB** | 256 GiB or 2.5 TiB | Zonal |
+| **Regional** | **1 TiB** | **100 TiB** | 256 GiB or 2.5 TiB | Regional |
+| **Enterprise** | **1 TiB** | **10 TiB** (per instance) | 256 GiB (Up or down) | Regional |
+| *Enterprise Multishare* | 1 TiB | Up to 80 shares (up to **320 TiB** total capacity) | 256 GiB | Regional |
 
-### Functional Differences (AD Feature Gaps & Compatibility)  
-- **Google Cloud Service Integration** – Managed AD integrates natively with services such as Filestore, SQL Server on GCE, and GKE; mini-AD requires additional configuration to enable these integrations.  
-- **Group Policy Objects (GPOs)** – Managed AD supports full Windows GPOs; Samba’s GPO support is limited and lacks multi-DC replication.  
-- **PowerShell AD Cmdlets** – Managed AD exposes AD Web Services for remote management; Samba mini-AD does not support native AD PowerShell cmdlets.  
-- **Kerberos Trusts with On-Prem AD** – Managed AD supports domain and forest trusts; mini-AD requires manual Kerberos/LDAP configuration, which is complex and limited.  
-- **No Google Identity (Cloud Identity / Workspace) Integration** – Mini-AD cannot integrate with Google Identity or Cloud IAM. This prevents seamless SSO, conditional access, and native identity federation with Google Workspace or IAM-controlled resources.  
+---
+
+### 🔒 NFS Protocol Support
+
+| Tier | NFSv3 | NFSv4.1 | Key Differentiator |
+| :--- | :--- | :--- | :--- |
+| **Basic HDD/SSD** | ✅ Yes | ❌ No | Simplicity, compatibility (NFSv3 only) |
+| **Zonal** | ✅ Yes | ✅ Yes | Highest Zonal performance and NFSv4.1 features. |
+| **Regional** | ✅ Yes | ✅ Yes | Regional redundancy (high availability) with NFSv4.1 features. |
+| **Enterprise** | ✅ Yes | ✅ Yes | Highest availability (**multi-zone redundancy**) for mission-critical apps and NFSv4.1 features. |
+
+---
+
+### 💰 Minimal Deploy Size: Cost Comparison (Illustrative)
+
+> These are illustrative monthly costs based on the minimum instance size and *approximate* public pricing for a typical US region (e.g., `us-central1`). **Actual costs vary by region.**
+
+| Tier | Availability | **Minimum capacity** | Approx **$/GiB-month** | **Est. monthly @ min size** |
+| :--- | :--- | :---: | :---: | :---: |
+| **Basic HDD** | Zonal | **1 TiB** | $\approx\mathbf{\$0.20}$ | $\approx\mathbf{\$204.80}$ |
+| **Basic SSD** | Zonal | **2.5 TiB** | $\approx\$0.30$ | $\approx\$768.00$ |
+| **Zonal** (Default perf) | Zonal | **1 TiB** | $\approx\mathbf{\$0.28}$ | $\approx\mathbf{\$286.72}$ |
+| **Regional** (Default perf) | Regional | **1 TiB** | $\approx\$0.45$ | $\approx\$460.80$ |
+| **Enterprise** | Regional | **1 TiB** | $\approx\$0.45$ | $\approx\$460.80$ |
+
+#### Key Cost Notes:
+
+* **Custom Performance (Zonal/Regional):** Selecting **Custom Performance** lowers the $\text{\$/GiB-month}$ charge but introduces two new hourly fees: a **per-instance hourly charge** and a **per-IOPS hourly charge**. The total cost will depend on the custom IOPS you provision.
+* **Basic Tiers:** The Basic tiers (HDD/SSD) often have a **per-GiB rate AND an hourly instance fee**, which is factored into the approximate blended $\text{\$/GiB-month}$ rate shown above.
+* **NFSv4.1:** To utilize features like **Kerberos/Active Directory integration** and stronger security, you must select **Zonal, Regional, or Enterprise**. Basic tiers are **NFSv3-only**.
 
 ## Prerequisites
 
@@ -44,8 +70,8 @@ If this is your first time watching our content, we recommend starting with this
 Clone the repository from GitHub and move into the project directory:  
 
 ```bash
-git clone https://github.com/mamonaco1973/gcp-mini-ad.git
-cd gcp-mini-ad
+git clone https://github.com/mamonaco1973/gcp-filestore.git
+cd gcp-filestore
 ```  
 
 ---
@@ -55,7 +81,7 @@ cd gcp-mini-ad
 Run [check_env](check_env.sh) to validate your environment, then run [apply](apply.sh) to provision the infrastructure.  
 
 ```bash
-develop-vm:~/gcp-mini-ad$ ./apply.sh
+develop-vm:~/gcp-file-store$ ./apply.sh
 NOTE: Validating that required commands are in PATH.
 NOTE: gcloud is found in the current PATH.
 NOTE: terraform is found in the current PATH.
@@ -65,29 +91,39 @@ NOTE: Successfully authenticated with GCP.
 Initializing provider plugins...
 Terraform has been successfully initialized!
 ```  
-## Build Results  
+## Build Results
 
-When the deployment completes, the following resources are created:  
+When the deployment completes, the following resources are created:
 
-- **Networking:**  
-  - A custom VPC with private subnets for domain controller and client instances  
-  - Firewall rules that allow only the necessary AD/DC ports (LDAP, Kerberos, DNS, SMB, etc.)  
-  - Internal DNS resolution configured through the domain controller  
+- **Networking**
+  - A **custom-mode VPC** with dedicated subnets for the domain controller, the NFS gateway, and client VMs
+  - **Firewall rules** for required AD/DC ports (e.g., 53 DNS, 88 Kerberos, 123 NTP, 135/445 RPC/SMB, dynamic RPC range) and **NFS (2049)** from trusted subnets to Filestore / gateway
+  - Internal DNS resolution provided by the Samba DC (with forwarders as configured)
 
-- **Security & Identity:**  
-  - Google Cloud Secret Manager entries for administrator and user credentials  
-  - Firewall policies scoped to the domain controller and client instances  
+- **Security & Identity**
+  - **Secret Manager** entries for administrator and user credentials
+  - **Service accounts** and IAM bindings (least-privilege) for Compute Engine and Filestore access
+  - Required **Google APIs enabled** (Compute, Filestore, Secret Manager, etc.)
 
-- **Active Directory Server:**  
-  - An Ubuntu-based Compute Engine VM running Samba 4 as both Domain Controller and DNS server  
-  - Configured Kerberos realm and NetBIOS name  
-  - Administrator credentials stored securely in Secret Manager  
-  - User and group provisioning via Terraform templates (`users.json.template`)  
+- **Active Directory Server**
+  - An **Ubuntu** Compute Engine VM running **Samba 4** as Domain Controller and DNS
+  - Configured **Kerberos realm** and **NetBIOS** name
+  - Administrator credentials stored in **Secret Manager**
+  - **User/group bootstrap** via Terraform template: `01-directory/scripts/users.json.template`
 
-- **Client Instances:**  
-  - Windows VM automatically joined to the domain via [ad_join.ps1](02-servers/scripts/ad_join.ps1) at boot  
-  - Linux VM joined to the domain using [ad_join.sh](02-servers/scripts/ad_join.sh) with SSSD configuration  
-  - Both client instances authenticate against the mini-AD domain  
+- **Shared Storage (Filestore)**
+  - A **Filestore instance** with an exported share (e.g., `filestore`)
+  - Mount target reachable from the NFS gateway and (optionally) Linux clients
+  - Mounted on the gateway (e.g., `/nfs`) with POSIX ownership/permissions applied by init scripts
+
+- **Client & Gateway Instances**
+  - **NFS Gateway (Linux):** Ubuntu VM **joined to the domain**, mounts Filestore, and **re-exports as SMB** via Samba for Windows clients  
+    - Bootstrapped by: `02-servers/scripts/nfs_gateway_init.sh`
+  - **Windows Client:** Windows Server VM **auto-joined to the domain** at first boot  
+    - Bootstrapped by: `02-servers/scripts/ad_join.ps1`
+  - Both paths authenticate against the **mini-AD** domain (Linux via NSS/SSSD + Kerberos, Windows via native AD)
+
+
 
 ## Users and Groups
 
@@ -134,13 +170,14 @@ Administrator credentials are stored in the `admin_ad_credentials` secret.
 
 ### Log into Linux Instance  
 
-When the Linux instance boots, the [startup script](02-servers/scripts/ad_join.sh) runs the following tasks:  
+When the Linux instance boots, the [startup script](02-servers/scripts/nfs_gateway.sh) runs the following tasks:  
 
 - Update OS and install required packages  
 - Join the Active Directory domain with SSSD  
 - Enable password authentication for AD users  
 - Configure SSSD for AD integration  
 - Grant sudo privileges to the `linux-admins` group  
+- Configure instance as a Samba file gateway to NFS
 
 Linux user credentials are stored as secrets.
 
