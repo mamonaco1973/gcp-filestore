@@ -36,3 +36,6 @@ terraform apply -auto-approve
 
 # Return to the parent directory once server provisioning is complete.
 cd ..
+
+./validate.sh
+
