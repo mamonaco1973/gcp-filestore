@@ -1,126 +1,144 @@
-# ================================================================================================
-# Random String, Firewall (SSH), and Ubuntu VM for AD/NFS Gateway
-# ================================================================================================
-# Provisions:
-#   1. Random string suffix for uniqueness across resource names.
-#   2. Firewall rule allowing inbound SSH (port 22) to tagged VMs.
-#   3. Ubuntu 24.04 Compute Engine VM configured as an NFS gateway and AD join client.
-#   4. Data source for the latest Ubuntu 24.04 LTS image.
+# ==============================================================================
+# nfs_gateway.tf - Random Suffix, Firewall Rules, and NFS Gateway VM
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Generates a unique suffix for resource naming.
+#   - Creates firewall rules to allow SSH and SMB to tagged instances.
+#   - Deploys an Ubuntu 24.04 VM that joins AD and mounts NFS (Filestore).
+#   - Fetches the latest Ubuntu 24.04 LTS image for the boot disk.
 #
 # Key Points:
-#   - Random suffix prevents name collisions when deploying multiple environments.
-#   - SSH rule is wide open (0.0.0.0/0) — ⚠️ insecure for production.
-#   - VM auto-runs a startup script to join AD and mount NFS from Filestore.
-#   - Uses service account for GCP API access.
-# ================================================================================================
+#   - Random suffix prevents name collisions across repeated deployments.
+#   - SSH/SMB rules are open to 0.0.0.0/0 (lab only; restrict for prod).
+#   - VM uses a startup script (templatefile) for AD join + NFS mount.
+#   - VM runs with a service account for GCP API access.
+# ==============================================================================
 
 
-# ================================================================================================
+# ==============================================================================
 # Random String Generator
-# ================================================================================================
-# Generates a 6-character lowercase suffix to ensure resource name uniqueness.
-# ================================================================================================
+# ------------------------------------------------------------------------------
+# Generates a short, DNS-friendly suffix for uniqueness in resource names.
+#
+# Notes:
+#   - Lowercase only to keep names consistent and compliant.
+#   - No special characters to avoid invalid resource names.
+# ==============================================================================
+
 resource "random_string" "vm_suffix" {
-  length  = 6     # Number of characters in the generated string
-  special = false # Excludes special characters (DNS-friendly)
-  upper   = false # Lowercase only for consistency
+  length  = 6
+  special = false
+  upper   = false
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Firewall Rule: Allow SSH
-# ================================================================================================
-# Opens TCP port 22 for SSH access to VMs tagged with "allow-ssh".
+# ------------------------------------------------------------------------------
+# Allows inbound SSH (TCP/22) to instances tagged with "allow-ssh".
 #
-# Key Points:
-#   - Applies only to instances with "allow-ssh" tag.
-#   - Source range is open to the internet (0.0.0.0/0) — ⚠️ restrict in production.
-# ================================================================================================
+# Notes:
+#   - source_ranges is open to the internet (0.0.0.0/0) for lab usage.
+#   - For production, restrict source_ranges to trusted IPs or IAP.
+# ==============================================================================
+
 resource "google_compute_firewall" "allow_ssh" {
   name    = "allow-ssh"
-  network = "ad-vpc"
+  network = var.vpc_name
 
   allow {
     protocol = "tcp"
     ports    = ["22"]
   }
 
-  # Tag-based targeting (applies only to instances with this tag)
+  # Tag-based targeting (applies only to instances with this tag).
   target_tags = ["allow-ssh"]
 
-  # ⚠️ Lab only; tighten for production
+  # Lab only; tighten for production.
   source_ranges = ["0.0.0.0/0"]
 }
 
-# ================================================================================================
-# Firewall Rule: Allow SMB (Windows File Sharing)
-# ================================================================================================
-# Opens TCP port 445 for SMB access to VMs tagged with "allow-smb".
+
+# ==============================================================================
+# Firewall Rule: Allow SMB
+# ------------------------------------------------------------------------------
+# Allows inbound SMB (TCP/445) to instances tagged with "allow-smb".
 #
-# Key Points:
-#   - Applies only to instances with "allow-smb" tag.
-#   - Source range is open to the internet (0.0.0.0/0) — ⚠️ restrict in production.
-# ================================================================================================
+# Notes:
+#   - SMB exposed to the internet is high risk; keep this private in prod.
+#   - Prefer VPN / IAP / bastion patterns and restricted source ranges.
+# ==============================================================================
+
 resource "google_compute_firewall" "allow_smb" {
   name    = "allow-smb"
-  network = "ad-vpc"
+  network = var.vpc_name
 
   allow {
     protocol = "tcp"
     ports    = ["445"]
   }
 
-  # Tag-based targeting (applies only to instances with this tag)
+  # Tag-based targeting (applies only to instances with this tag).
   target_tags = ["allow-smb"]
 
-  # ⚠️ Lab only; tighten for production
+  # Lab only; tighten for production.
   source_ranges = ["0.0.0.0/0"]
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Ubuntu VM: NFS Gateway + AD Join Client
-# ================================================================================================
-# Deploys an Ubuntu 24.04 VM that:
-#   - Connects to the "ad-vpc" network and "ad-subnet".
-#   - Runs a startup script to join the AD domain and mount NFS from Filestore.
-#   - Uses OS Login for secure SSH access.
+# ------------------------------------------------------------------------------
+# Deploys an Ubuntu 24.04 Compute Engine instance that:
+#   - Attaches to the AD VPC and subnet.
+#   - Runs a startup script to join the AD domain.
+#   - Mounts NFS storage exported by a Filestore instance.
 #
-# Key Points:
-#   - Ephemeral public IP assigned for SSH.
-#   - Startup script injects domain FQDN and Filestore IP.
-#   - Service account grants API access.
-# ================================================================================================
+# Notes:
+#   - An ephemeral external IP is assigned for SSH access.
+#   - OS Login is enabled via instance metadata.
+#   - A service account is attached for API access during bootstrap.
+# ==============================================================================
+
 resource "google_compute_instance" "nfs_gateway_instance" {
   name         = "nfs-gateway-${random_string.vm_suffix.result}"
-  machine_type = "e2-standard-2" 
+  machine_type = "e2-standard-2"
   zone         = "us-central1-a"
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Boot Disk
-  # ----------------------------------------------------------------------------------------------
+  # - Uses the latest Ubuntu 24.04 LTS image from ubuntu-os-cloud.
+  # ----------------------------------------------------------------------------
   boot_disk {
     initialize_params {
       image = data.google_compute_image.ubuntu_latest.self_link
     }
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Network Interface
-  # ----------------------------------------------------------------------------------------------
+  # - Attaches to the AD VPC and subnet.
+  # - Adds an external IP for SSH connectivity (lab convenience).
+  # ----------------------------------------------------------------------------
   network_interface {
-    network    = "ad-vpc"
-    subnetwork = "ad-subnet"
+    network    = var.vpc_name
+    subnetwork = var.ad_subnet
 
-    # Ephemeral public IP (required for SSH access)
+    # Ephemeral public IP (required for direct SSH from the internet).
     access_config {}
   }
 
-  # ----------------------------------------------------------------------------------------------
-  # Metadata (Startup Script + Config)
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # Metadata (OS Login + Startup Script)
+  # - enable-oslogin enforces IAM-backed SSH via OS Login.
+  # - startup-script bootstraps AD join + NFS mount using templated values.
+  #
+  # Note:
+  #   - This template map currently defines domain_fqdn twice.
+  #   - The later assignment (var.dns_zone) wins in Terraform maps.
+  # ----------------------------------------------------------------------------
   metadata = {
-    enable-oslogin = "TRUE" # Enforce OS Login for secure SSH
+    enable-oslogin = "TRUE"
 
     startup-script = templatefile("./scripts/nfs_gateway_init.sh", {
       domain_fqdn   = "mcloud.mikecloud.com"
@@ -132,28 +150,35 @@ resource "google_compute_instance" "nfs_gateway_instance" {
     })
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Service Account
-  # ----------------------------------------------------------------------------------------------
+  # - cloud-platform scope allows broad API access; least privilege is better
+  #   for production, but this is common for lab automation.
+  # ----------------------------------------------------------------------------
   service_account {
     email  = local.service_account_email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Firewall Tags
-  # ----------------------------------------------------------------------------------------------
-  # Applies both SSH and NFS firewall rules
+  # - allow-ssh and allow-smb match rules in this file.
+  # - allow-nfs is referenced but the firewall rule is defined elsewhere.
+  # ----------------------------------------------------------------------------
   tags = ["allow-ssh", "allow-nfs", "allow-smb"]
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Data Source: Latest Ubuntu 24.04 LTS Image
-# ================================================================================================
-# Dynamically fetches the most recent Ubuntu 24.04 LTS image.
-# Ensures VMs always launch with a patched image.
-# ================================================================================================
+# ------------------------------------------------------------------------------
+# Pulls the newest image from the Ubuntu LTS family.
+#
+# Notes:
+#   - Ensures new instances launch with recent patches.
+#   - Family images update over time; pin to an image for full immutability.
+# ==============================================================================
+
 data "google_compute_image" "ubuntu_latest" {
   family  = "ubuntu-2404-lts-amd64"
   project = "ubuntu-os-cloud"

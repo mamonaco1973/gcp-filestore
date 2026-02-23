@@ -1,62 +1,69 @@
-# ================================================================================================
-# Custom VPC, Subnet, Router, and NAT for Active Directory Environment
-# ================================================================================================
-# Provisions:
+# ==============================================================================
+# Custom VPC, Subnet, Router, and NAT for Active Directory
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Provisions isolated networking for the Mini-AD environment.
+#   - Creates custom VPC, dedicated subnet, Cloud Router, and Cloud NAT.
+#
+# Architecture:
 #   1. Custom-mode VPC (no default subnets).
-#   2. Explicit subnet for AD resources.
-#   3. Cloud Router to manage dynamic routing.
-#   4. Cloud NAT for outbound internet without public IPs.
+#   2. Regional subnet for AD resources.
+#   3. Cloud Router (required for NAT).
+#   4. Cloud NAT for outbound-only internet access.
 #
-# Key Points:
-#   - Custom VPC avoids auto-created subnets (better control).
-#   - Subnet explicitly defined in `us-central1` with CIDR block 10.1.0.0/24.
-#   - Cloud Router enables advanced networking features (e.g., NAT, BGP).
-#   - Cloud NAT provides secure outbound access for private VMs.
-# ================================================================================================
+# Notes:
+#   - Instances remain private (no external IPs required).
+#   - NAT provides secure egress for package installs and updates.
+# ==============================================================================
 
 
-# ================================================================================================
+# ==============================================================================
 # VPC Network: Active Directory VPC
-# ================================================================================================
-# Creates a custom-mode VPC named `ad-vpc`.
+# ------------------------------------------------------------------------------
+# Creates a custom-mode VPC named "ad-vpc".
 #
 # Key Points:
-#   - Auto subnet creation disabled.
-#   - All subnets must be manually defined.
-# ================================================================================================
+#   - auto_create_subnetworks = false disables default subnet creation.
+#   - All subnets must be explicitly defined.
+# ==============================================================================
+
 resource "google_compute_network" "ad_vpc" {
-  name                    = "ad-vpc"
+  name                    = var.vpc_name
   auto_create_subnetworks = false
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Subnet: Active Directory Subnet
-# ================================================================================================
-# Defines a subnet inside the `ad-vpc` network for AD resources.
+# ------------------------------------------------------------------------------
+# Defines a regional subnet for AD resources.
 #
 # Key Points:
-#   - Located in `us-central1` region.
-#   - CIDR: 10.1.0.0/24 (non-overlapping, must be large enough for resources).
-#   - Explicitly tied to the VPC above.
-# ================================================================================================
+#   - Region: us-central1.
+#   - CIDR: 10.1.0.0/24.
+#   - Must not overlap with other networks.
+#   - Attached to the custom VPC above.
+# ==============================================================================
+
 resource "google_compute_subnetwork" "ad_subnet" {
-  name          = "ad-subnet"
+  name          = var.ad_subnet
   region        = "us-central1"
   network       = google_compute_network.ad_vpc.id
   ip_cidr_range = "10.1.0.0/24"
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Cloud Router
-# ================================================================================================
-# Creates a Cloud Router in the AD VPC.
+# ------------------------------------------------------------------------------
+# Creates a regional Cloud Router in the AD VPC.
 #
 # Key Points:
 #   - Required for Cloud NAT.
-#   - Handles dynamic route advertisement and BGP if configured.
-# ================================================================================================
+#   - Supports dynamic routing and BGP if later configured.
+#   - Must exist before NAT can be attached.
+# ==============================================================================
+
 resource "google_compute_router" "ad_router" {
   name    = "ad-router"
   network = google_compute_network.ad_vpc.id
@@ -64,16 +71,18 @@ resource "google_compute_router" "ad_router" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Cloud NAT
-# ================================================================================================
-# Provides outbound internet access for private resources in the AD subnet.
+# ------------------------------------------------------------------------------
+# Provides outbound internet access for private AD resources.
 #
 # Key Points:
-#   - No need for public IPs on instances.
-#   - NAT IPs are allocated automatically.
-#   - Logs all flows (ALL).
-# ================================================================================================
+#   - NAT IPs automatically allocated (AUTO_ONLY).
+#   - Applies to all subnets and IP ranges in the VPC.
+#   - Flow logging enabled with filter set to ALL.
+#   - Eliminates need for public IPs on AD instances.
+# ==============================================================================
+
 resource "google_compute_router_nat" "ad_nat" {
   name   = "ad-nat"
   router = google_compute_router.ad_router.name

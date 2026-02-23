@@ -1,46 +1,77 @@
-# ================================================================================================
+# ==============================================================================
 # Google Cloud Provider & Local Variables
-# ================================================================================================
-# Configures the Google Cloud provider for Terraform, using credentials from a JSON file.
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Configures the Google provider for Terraform execution.
+#   - Authenticates using a service account JSON key file.
+#   - Exposes decoded credential fields as reusable locals.
 #
-# Key Points:
-#   - Provider uses project ID and credentials for authentication.
-#   - Local variables decode the JSON credentials for reuse (project_id, service account email).
-# ================================================================================================
+# Notes:
+#   - credentials.json must exist at ../credentials.json.
+#   - Avoid committing credential files to source control.
+#   - project_id and client_email are derived dynamically.
+# ==============================================================================
+
 provider "google" {
-  project     = local.credentials.project_id # Project ID extracted from credentials.json
-  credentials = file("../credentials.json")  # Path to service account credentials file
+  # --------------------------------------------------------------------------
+  # Project context
+  # - Reads project_id from decoded credentials JSON.
+  # --------------------------------------------------------------------------
+  project = local.credentials.project_id
+
+  # --------------------------------------------------------------------------
+  # Authentication
+  # - Uses service account key for non-interactive Terraform runs.
+  # --------------------------------------------------------------------------
+  credentials = file("../credentials.json")
 }
 
-# ================================================================================================
+
+# ==============================================================================
 # Local Variables
-# ================================================================================================
-# Decodes the credentials JSON file and extracts useful fields.
+# ------------------------------------------------------------------------------
+# Decodes the credentials JSON file and extracts reusable fields.
 #
 # Key Points:
-#   - `credentials` local contains the entire decoded JSON map.
-#   - `service_account_email` provides the service account identity for resource bindings.
-# ================================================================================================
+#   - credentials: full decoded JSON map.
+#   - service_account_email: used for IAM bindings and module inputs.
+# ==============================================================================
+
 locals {
-  credentials           = jsondecode(file("../credentials.json"))
+  # --------------------------------------------------------------------------
+  # Full decoded service account JSON.
+  # --------------------------------------------------------------------------
+  credentials = jsondecode(file("../credentials.json"))
+
+  # --------------------------------------------------------------------------
+  # Service account identity extracted from credentials.
+  # --------------------------------------------------------------------------
   service_account_email = local.credentials.client_email
 }
 
 
-# ================================================================================================
-# Data Sources: Network and Subnet
-# ================================================================================================
-# Looks up existing VPC network and subnet for resource attachment.
+# ==============================================================================
+# Data Sources: Existing Network & Subnet
+# ------------------------------------------------------------------------------
+# Looks up pre-existing VPC and subnet for resource attachment.
 #
 # Key Points:
-#   - `ad-vpc` is the base VPC for Active Directory lab resources.
-#   - `ad-subnet` defines the subnet within `us-central1`.
-# ================================================================================================
+#   - ad-vpc must already exist in the project.
+#   - ad-subnet must exist in us-central1 region.
+#   - Data sources prevent recreation of shared networking.
+# ==============================================================================
+
 data "google_compute_network" "ad_vpc" {
-  name = "ad-vpc"
+  # --------------------------------------------------------------------------
+  # Reference existing VPC by name.
+  # --------------------------------------------------------------------------
+  name = var.vpc_name
 }
 
 data "google_compute_subnetwork" "ad_subnet" {
-  name   = "ad-subnet"
+  # --------------------------------------------------------------------------
+  # Reference existing subnet by name and region.
+  # --------------------------------------------------------------------------
+  name   = var.ad_subnet
   region = "us-central1"
 }

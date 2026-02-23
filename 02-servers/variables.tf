@@ -45,3 +45,25 @@ variable "user_base_dn" {
   default     = "CN=Users,DC=mcloud,DC=mikecloud,DC=com"
 }
 
+# ------------------------------------------------------------------------------
+# VPC Name
+# - Name of the VPC network used by the deployment.
+# - Must exist if not created in this configuration.
+# ------------------------------------------------------------------------------
+variable "vpc_name" {
+  description = "VPC network name"
+  type        = string
+  default     = "filestore-vpc"
+}
+
+
+# ------------------------------------------------------------------------------
+# Subnetwork Name
+# - Subnet where the mini AD VM will be deployed.
+# - Must exist in the specified region/zone.
+# ------------------------------------------------------------------------------
+variable "ad_subnet" {
+  description = "Sub-network for mini AD instance"
+  type        = string
+  default     = "ad-subnet-filestore"
+}

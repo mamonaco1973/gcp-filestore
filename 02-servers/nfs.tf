@@ -1,69 +1,82 @@
-# ================================================================================================
-# Google Cloud Filestore (Basic NFS Server) with Firewall Rules
-# ================================================================================================
-# Provisions a Filestore instance for NFS storage and secures access via a firewall rule.
+# ==============================================================================
+# nfs.tf - Google Cloud Filestore (Basic NFS) + Firewall
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Provisions a managed Filestore instance for NFS storage.
+#   - Exposes NFS (2049) via firewall for client access.
 #
 # Key Points:
-#   - Filestore provides fully managed NFS storage in GCP.
-#   - Minimum size = 1 TB (1024 GiB).
-#   - Instance is deployed in a specific zone (not region-wide).
-#   - Basic tiers (HDD or SSD) support only NFSv3.
-#   - NFS access allowed on port 2049 (TCP + UDP).
-#   - Source range is open to 0.0.0.0/0 for lab use; restrict in production.
-# ================================================================================================
+#   - Basic tiers (HDD/SSD) support NFSv3 only.
+#   - Minimum size for Basic tier is 1024 GiB (1 TB).
+#   - Filestore is a zonal resource (not regional).
+#   - Access is open to 0.0.0.0/0 (lab only; restrict for production).
+# ==============================================================================
+
+
+# ==============================================================================
+# Filestore Instance: Basic NFS Server
+# ------------------------------------------------------------------------------
+# Creates a zonal Filestore instance attached to the AD VPC.
+#
+# Notes:
+#   - Tier controls performance and cost.
+#   - BASIC_HDD is lowest cost; suitable for lab workloads.
+#   - HIGH_SCALE_SSD / ENTERPRISE support NFSv4.1.
+# ==============================================================================
+
 resource "google_filestore_instance" "nfs_server" {
 
-  # ----------------------------------------------------------------------------------------------
-  # Filestore Configuration
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # Core Filestore Settings
   # - Name must be unique within the project.
-  # - Tier determines performance and pricing. Options:
-  #     BASIC_HDD, BASIC_SSD  (NFSv3 only)
-  #     HIGH_SCALE_SSD, ENTERPRISE (NFSv3 + NFSv4.1)
-  # - Location must be a zone (e.g., us-central1-b), not just a region.
-  # - Project ID is pulled from local credentials.
+  # - location must be a zone (e.g., us-central1-b).
+  # - project derived from decoded credentials.
+  # ----------------------------------------------------------------------------
   name     = "nfs-server"
-  tier     = "BASIC_HDD"     # Reverted to Basic HDD
-  location = "us-central1-b" # Zonal, not regional
+  tier     = "BASIC_HDD"
+  location = "us-central1-b"
   project  = local.credentials.project_id
 
-  # ----------------------------------------------------------------------------------------------
-  # File Share Configuration
-  # ----------------------------------------------------------------------------------------------
-  # - Minimum capacity for Basic Filestore is 1 TB (1024 GiB).
-  # - Export options define client access mode, root squash, and allowed IP ranges.
+  # ----------------------------------------------------------------------------
+  # File Share Definition
+  # - capacity_gb minimum for Basic tier is 1024.
+  # - nfs_export_options define access behavior.
+  # ----------------------------------------------------------------------------
   file_shares {
-    capacity_gb = 1024 # 1 TB minimum
+    capacity_gb = 1024
     name        = "filestore"
 
     nfs_export_options {
-      access_mode = "READ_WRITE"     # Allow read/write access
-      squash_mode = "NO_ROOT_SQUASH" # Preserve root privileges on clients
-      ip_ranges   = ["0.0.0.0/0"]    # ⚠️ Lab only; restrict in production
+      access_mode = "READ_WRITE"
+      squash_mode = "NO_ROOT_SQUASH"
+
+      # Lab only; restrict to subnet CIDR in production.
+      ip_ranges = ["0.0.0.0/0"]
     }
   }
 
-  # ----------------------------------------------------------------------------------------------
-  # Network Configuration
-  # ----------------------------------------------------------------------------------------------
-  # - Attaches Filestore to the specified VPC network.
-  # - Modes set to IPv4 only (default for most labs).
+  # ----------------------------------------------------------------------------
+  # Network Attachment
+  # - Attaches Filestore to the AD VPC.
+  # - MODE_IPV4 is default and sufficient for most labs.
+  # ----------------------------------------------------------------------------
   networks {
     network = data.google_compute_network.ad_vpc.name
     modes   = ["MODE_IPV4"]
   }
 }
 
-# ================================================================================================
-# Firewall Rule: Allow NFS Traffic
-# ================================================================================================
-# Grants network access to NFS port (2049) over both TCP and UDP.
+
+# ==============================================================================
+# Firewall Rule: Allow NFS (TCP/UDP 2049)
+# ------------------------------------------------------------------------------
+# Allows inbound NFS traffic for Linux clients mounting Filestore.
 #
-# Key Points:
-#   - Required for Linux clients to mount Filestore over NFS.
-#   - Source range is wide open (0.0.0.0/0) for lab use.
-#   - In production, restrict to specific subnets or client ranges.
-# ================================================================================================
+# Notes:
+#   - Required for mount operations over NFSv3.
+#   - Restrict source_ranges to trusted CIDRs in production.
+# ==============================================================================
+
 resource "google_compute_firewall" "allow_nfs" {
   name    = "allow-nfs"
   network = data.google_compute_network.ad_vpc.name
@@ -78,15 +91,22 @@ resource "google_compute_firewall" "allow_nfs" {
     ports    = ["2049"]
   }
 
-  source_ranges = ["0.0.0.0/0"] # ⚠️ Lab only; tighten to your subnet CIDR in production
+  # Lab only; tighten to your subnet CIDR in production.
+  source_ranges = ["0.0.0.0/0"]
 }
 
-# ================================================================================================
-# Output: Filestore IP Address
-# ================================================================================================
-# Exposes the Filestore instance’s private IP address for use in mount commands.
-# Example mount path: <IP_ADDRESS>:/filestore
-# ================================================================================================
+
+# ==============================================================================
+# Optional Output: Filestore Private IP
+# ------------------------------------------------------------------------------
+# Exposes the Filestore private IP for mount commands.
+#
+# Example:
+#   mount -t nfs <IP_ADDRESS>:/filestore /mnt
+#
+# Uncomment if external modules or scripts require this value.
+# ==============================================================================
+
 # output "filestore_ip" {
 #   value = google_filestore_instance.nfs_server.networks[0].ip_addresses[0]
 # }

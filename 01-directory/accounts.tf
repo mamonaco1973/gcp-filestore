@@ -1,32 +1,32 @@
-# ================================================================================================
+# ==============================================================================
 # Active Directory User Credentials in GCP Secret Manager
-# ================================================================================================
+# ==============================================================================
 # Provisions:
 #   1. Random passwords for each AD user.
 #   2. Secret Manager entries for storing credentials.
-#   3. IAM bindings granting the service account access to retrieve these secrets.
+#   3. IAM bindings granting the service account access to these secrets.
 #
 # Key Points:
 #   - Users: Admin, John Smith, Emily Davis, Raj Patel, Amit Kumar.
-#   - Random passwords include special characters, with controlled override sets.
-#   - Secrets stored securely in GCP Secret Manager.
-#   - Service account is granted `roles/secretmanager.secretAccessor` on all secrets.
-# ================================================================================================
+#   - Random passwords include special chars with controlled override sets.
+#   - Secrets are stored securely in GCP Secret Manager.
+#   - Service account is granted roles/secretmanager.secretAccessor on secrets.
+# ==============================================================================
 
 
-# ================================================================================================
+# ==============================================================================
 # User: Admin
-# ================================================================================================
-# Generates password and stores AD credentials for the `MCLOUD\admin` account.
-# ================================================================================================
+# ==============================================================================
+# Generates password and stores AD credentials for the MCLOUD\admin account.
+# ==============================================================================
 resource "random_password" "admin_password" {
   length           = 24
   special          = true
-  override_special = "_."
+  override_special = "_-"
 }
 
 resource "google_secret_manager_secret" "admin_secret" {
-  secret_id = "admin-ad-credentials"
+  secret_id = "admin-ad-credentials-nfs"
 
   replication {
     auto {}
@@ -42,11 +42,11 @@ resource "google_secret_manager_secret_version" "admin_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # User: John Smith
-# ================================================================================================
-# Generates password and stores AD credentials for the `MCLOUD\jsmith` account.
-# ================================================================================================
+# ==============================================================================
+# Generates password and stores AD credentials for the MCLOUD\jsmith account.
+# ==============================================================================
 resource "random_password" "jsmith_password" {
   length           = 24
   special          = true
@@ -54,7 +54,7 @@ resource "random_password" "jsmith_password" {
 }
 
 resource "google_secret_manager_secret" "jsmith_secret" {
-  secret_id = "jsmith-ad-credentials"
+  secret_id = "jsmith-ad-credentials-nfs"
 
   replication {
     auto {}
@@ -70,11 +70,11 @@ resource "google_secret_manager_secret_version" "jsmith_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # User: Emily Davis
-# ================================================================================================
-# Generates password and stores AD credentials for the `MCLOUD\edavis` account.
-# ================================================================================================
+# ==============================================================================
+# Generates password and stores AD credentials for the MCLOUD\edavis account.
+# ==============================================================================
 resource "random_password" "edavis_password" {
   length           = 24
   special          = true
@@ -82,7 +82,7 @@ resource "random_password" "edavis_password" {
 }
 
 resource "google_secret_manager_secret" "edavis_secret" {
-  secret_id = "edavis-ad-credentials"
+  secret_id = "edavis-ad-credentials-nfs"
 
   replication {
     auto {}
@@ -98,11 +98,11 @@ resource "google_secret_manager_secret_version" "edavis_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # User: Raj Patel
-# ================================================================================================
-# Generates password and stores AD credentials for the `MCLOUD\rpatel` account.
-# ================================================================================================
+# ==============================================================================
+# Generates password and stores AD credentials for the MCLOUD\rpatel account.
+# ==============================================================================
 resource "random_password" "rpatel_password" {
   length           = 24
   special          = true
@@ -110,7 +110,7 @@ resource "random_password" "rpatel_password" {
 }
 
 resource "google_secret_manager_secret" "rpatel_secret" {
-  secret_id = "rpatel-ad-credentials"
+  secret_id = "rpatel-ad-credentials-nfs"
 
   replication {
     auto {}
@@ -126,11 +126,11 @@ resource "google_secret_manager_secret_version" "rpatel_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # User: Amit Kumar
-# ================================================================================================
-# Generates password and stores AD credentials for the `MCLOUD\akumar` account.
-# ================================================================================================
+# ==============================================================================
+# Generates password and stores AD credentials for the MCLOUD\akumar account.
+# ==============================================================================
 resource "random_password" "akumar_password" {
   length           = 24
   special          = true
@@ -138,7 +138,7 @@ resource "random_password" "akumar_password" {
 }
 
 resource "google_secret_manager_secret" "akumar_secret" {
-  secret_id = "akumar-ad-credentials"
+  secret_id = "akumar-ad-credentials-nfs"
 
   replication {
     auto {}
@@ -154,11 +154,11 @@ resource "google_secret_manager_secret_version" "akumar_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Locals: Secret List
-# ================================================================================================
+# ==============================================================================
 # Collects all secret IDs into a single list for use with IAM bindings.
-# ================================================================================================
+# ==============================================================================
 locals {
   secrets = [
     google_secret_manager_secret.jsmith_secret.secret_id,
@@ -170,16 +170,16 @@ locals {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # IAM Binding: Grant Secret Access
-# ================================================================================================
-# Grants the service account `roles/secretmanager.secretAccessor` on each secret.
+# ==============================================================================
+# Grants roles/secretmanager.secretAccessor on each secret to the service account.
 #
 # Key Points:
-#   - Iterates over the list of secrets using `for_each`.
+#   - Iterates over local.secrets using for_each + toset().
 #   - Service account must already exist.
-#   - Enables VMs or automation to retrieve user credentials.
-# ================================================================================================
+#   - Enables VMs/automation to retrieve user credentials at runtime.
+# ==============================================================================
 resource "google_secret_manager_secret_iam_binding" "secret_access" {
   for_each  = toset(local.secrets)
   secret_id = each.key

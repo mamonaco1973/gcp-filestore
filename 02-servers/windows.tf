@@ -1,26 +1,31 @@
-# ================================================================================================
-# SysAdmin Credentials + Windows AD Management VM with RDP Firewall
-# ================================================================================================
-# Provisions:
-#   1. SysAdmin password (randomly generated, stored securely in GCP Secret Manager).
-#   2. Firewall rule allowing inbound RDP (port 3389) access to tagged Windows instances.
-#   3. Windows Server 2022 instance for Active Directory administration.
-#   4. Data source to fetch the latest Windows Server 2022 image.
+# ==============================================================================
+# windows.tf - SysAdmin Secret, RDP Firewall, and Windows AD Admin VM
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Generates SysAdmin credentials and stores them in Secret Manager.
+#   - Creates a tag-based firewall rule to allow inbound RDP (TCP/3389).
+#   - Deploys a Windows Server 2022 VM for AD administration.
+#   - Fetches the latest Windows Server 2022 image at apply time.
 #
 # Key Points:
-#   - SysAdmin credentials are securely managed in Secret Manager.
-#   - Firewall rules are tag-based in GCP (unlike AWS Security Groups).
-#   - RDP rule is wide open (0.0.0.0/0) — ⚠️ insecure in production.
-#   - Windows VM auto-joins the AD domain using a startup PowerShell script.
-# ================================================================================================
+#   - SysAdmin password is randomly generated and stored as JSON in a secret.
+#   - GCP firewall rules apply via instance network tags (e.g., allow-rdp).
+#   - RDP is open to 0.0.0.0/0 (lab only; restrict heavily for production).
+#   - Windows VM runs a startup PowerShell script to join the AD domain.
+# ==============================================================================
 
 
-# ================================================================================================
-# SysAdmin Credentials
-# ================================================================================================
-# Generates a secure random password for the SysAdmin account and stores it in
-# GCP Secret Manager for retrieval by automation or administrators.
-# ================================================================================================
+# ==============================================================================
+# SysAdmin Credentials (Secret Manager)
+# ------------------------------------------------------------------------------
+# Generates a strong password for the SysAdmin account and stores it in
+# Secret Manager for retrieval by administrators or automation.
+#
+# Notes:
+#   - Secret payload is stored as JSON: { username, password }.
+#   - override_special limits special chars to reduce parsing issues.
+# ==============================================================================
+
 resource "random_password" "sysadmin_password" {
   length           = 24
   special          = true
@@ -44,83 +49,88 @@ resource "google_secret_manager_secret_version" "admin_secret_version" {
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Firewall Rule: Allow RDP
-# ================================================================================================
-# Grants inbound RDP access (port 3389) to Windows VMs tagged with "allow-rdp".
+# ------------------------------------------------------------------------------
+# Allows inbound RDP (TCP/3389) to instances tagged with "allow-rdp".
 #
-# Key Points:
-#   - RDP requires TCP port 3389.
-#   - Rule applies only to instances with `allow-rdp` tag.
-#   - Source range is open to the internet (0.0.0.0/0) — ⚠️ dangerous in production.
-# ================================================================================================
+# Notes:
+#   - Exposing RDP publicly is risky; restrict source_ranges in production.
+#   - Consider IAP, VPN, or a bastion instead of 0.0.0.0/0.
+# ==============================================================================
+
 resource "google_compute_firewall" "allow_rdp" {
   name    = "allow-rdp"
-  network = "ad-vpc"
+  network = var.vpc_name
 
-  # Allow TCP traffic on port 3389 (RDP)
   allow {
     protocol = "tcp"
     ports    = ["3389"]
   }
 
-  # Restrict rule application to instances with this tag
+  # Applies only to instances carrying this network tag.
   target_tags = ["allow-rdp"]
 
-  # ⚠️ Lab only; restrict source ranges for production
+  # Lab only; restrict for production.
   source_ranges = ["0.0.0.0/0"]
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Windows AD Management VM
-# ================================================================================================
-# Provisions a Windows Server 2022 VM for Active Directory administration and domain join tasks.
+# ------------------------------------------------------------------------------
+# Deploys a Windows Server 2022 instance for AD administration tasks.
 #
-# Key Points:
-#   - Uses latest Windows Server 2022 image from GCP.
-#   - VM tagged with "allow-rdp" so the firewall rule applies.
-#   - Startup script auto-joins the VM to the AD domain.
-#   - Admin credentials passed from Terraform into metadata.
-# ================================================================================================
+# Notes:
+#   - Assigns an external IP for RDP connectivity (lab convenience).
+#   - Attaches a service account for API access (secret retrieval, etc.).
+#   - Startup script is rendered from a template and executed at first boot.
+# ==============================================================================
+
 resource "google_compute_instance" "windows_ad_instance" {
-  name         = "win-ad-${random_string.vm_suffix.result}" # Random suffix for uniqueness
-  machine_type = "e2-standard-2"                            # Balanced instance size for Windows
+  name         = "win-ad-${random_string.vm_suffix.result}"
+  machine_type = "e2-standard-2"
   zone         = "us-central1-a"
 
-  # ----------------------------------------------------------------------------------------------
-  # Boot Disk (Windows Server 2022)
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
+  # Boot Disk
+  # - Uses the latest Windows Server 2022 image from windows-cloud family.
+  # ----------------------------------------------------------------------------
   boot_disk {
     initialize_params {
       image = data.google_compute_image.windows_2022.self_link
     }
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Network Interface
-  # ----------------------------------------------------------------------------------------------
+  # - Attaches to the AD VPC and subnet.
+  # - Adds an ephemeral external IP so RDP can reach the instance.
+  # ----------------------------------------------------------------------------
   network_interface {
-    network    = "ad-vpc"
-    subnetwork = "ad-subnet"
+    network    = var.vpc_name
+    subnetwork = var.ad_subnet
 
-    # Assigns a public IP so RDP connections can reach the VM
     access_config {}
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Service Account
-  # ----------------------------------------------------------------------------------------------
-  # Grants VM access to GCP APIs, useful for AD join automation or secret retrieval.
+  # - cloud-platform scope is broad; least privilege is better for prod.
+  # ----------------------------------------------------------------------------
   service_account {
     email  = local.service_account_email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
-  # ----------------------------------------------------------------------------------------------
-  # Startup Script (Domain Join)
-  # ----------------------------------------------------------------------------------------------
-  # Automatically runs at first boot to join the Windows VM to the AD domain.
+  # ----------------------------------------------------------------------------
+  # Metadata: Startup Script + Admin Credentials
+  # - windows-startup-script-ps1 runs once during first boot.
+  # - Credentials are provided via metadata for the join process.
+  #
+  # Note:
+  #   - domain_fqdn is hard-coded here; prefer var.dns_zone for consistency.
+  # ----------------------------------------------------------------------------
   metadata = {
     windows-startup-script-ps1 = templatefile("./scripts/ad_join.ps1", {
       domain_fqdn = "mcloud.mikecloud.com"
@@ -131,20 +141,24 @@ resource "google_compute_instance" "windows_ad_instance" {
     admin_password = random_password.sysadmin_password.result
   }
 
-  # ----------------------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Firewall Tags
-  # ----------------------------------------------------------------------------------------------
-  # Applies the "allow-rdp" firewall rule to this VM.
+  # - Applies the allow-rdp firewall rule to this VM.
+  # ----------------------------------------------------------------------------
   tags = ["allow-rdp"]
 }
 
 
-# ================================================================================================
+# ==============================================================================
 # Data Source: Latest Windows Server 2022 Image
-# ================================================================================================
-# Dynamically fetches the latest Windows Server 2022 image from the official
-# `windows-cloud` project, ensuring deployments always use a patched OS image.
-# ================================================================================================
+# ------------------------------------------------------------------------------
+# Pulls the newest image from the Windows Server 2022 family.
+#
+# Notes:
+#   - Ensures new instances launch with recent patches.
+#   - Pin to a specific image if you need strict immutability.
+# ==============================================================================
+
 data "google_compute_image" "windows_2022" {
   family  = "windows-2022"
   project = "windows-cloud"
