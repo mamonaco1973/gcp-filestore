@@ -77,3 +77,5 @@ gcloud auth activate-service-account --key-file="./credentials.json"
 # - Uses absolute path to avoid relative path issues.
 # ------------------------------------------------------------------------------
 export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
+
+./api_setup.sh
