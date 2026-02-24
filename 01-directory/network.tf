@@ -65,7 +65,7 @@ resource "google_compute_subnetwork" "ad_subnet" {
 # ==============================================================================
 
 resource "google_compute_router" "ad_router" {
-  name    = "ad-router"
+  name    = "ad-nfs-router"
   network = google_compute_network.ad_vpc.id
   region  = "us-central1"
 }
@@ -84,7 +84,7 @@ resource "google_compute_router" "ad_router" {
 # ==============================================================================
 
 resource "google_compute_router_nat" "ad_nat" {
-  name   = "ad-nat"
+  name   = "ad-nfs-nat"
   router = google_compute_router.ad_router.name
   region = google_compute_router.ad_router.region
 
