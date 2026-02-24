@@ -1,15 +1,59 @@
-
 #!/bin/bash
+# ==============================================================================
+# validate.sh - NFS/Filestore Quick Start Validation (GCP)
+# ------------------------------------------------------------------------------
+# Purpose:
+#   - Prints external IP addresses for:
+#       - Windows AD admin host (win-ad-*)
+#       - Linux domain-joined host (linux-ad-*)
+#   - Scoped only to instances attached to VPC: filestore-vpc
+#
+# Requirements:
+#   - gcloud CLI installed and authenticated
+#   - gcloud project set (gcloud config set project <PROJECT_ID>)
+# ==============================================================================
 
-NFS_IP=$(gcloud compute instances list \
-  --filter="name~'^nfs-gateway'" \
-  --format="value(networkInterfaces.accessConfigs[0].natIP)")
+set -euo pipefail
 
-echo "NOTE: Linux nfs-gateway public IP address is $NFS_IP"
+# ------------------------------------------------------------------------------
+# Configuration
+# ------------------------------------------------------------------------------
+PROJECT_ID="$(gcloud config get-value project 2>/dev/null)"
+WIN_PREFIX="win-ad-"
+LINUX_PREFIX="nfs-gateway-"
+VPC_NAME="filestore-vpc"
 
+# ------------------------------------------------------------------------------
+# Pre-Checks
+# ------------------------------------------------------------------------------
+if [ -z "${PROJECT_ID}" ]; then
+  echo "ERROR: No GCP project set."
+  exit 1
+fi
 
-WIN_IP=$(gcloud compute instances list \
-  --filter="name~'^win-ad'" \
-  --format="value(networkInterfaces.accessConfigs[0].natIP)")
+# ------------------------------------------------------------------------------
+# Lookups (Scoped to VPC)
+# ------------------------------------------------------------------------------
+windows_ip="$(gcloud compute instances list \
+  --filter="name~'^${WIN_PREFIX}.*' AND networkInterfaces.network:${VPC_NAME}" \
+  --format="value(networkInterfaces[0].accessConfigs[0].natIP)" \
+  --limit=1 2>/dev/null)"
 
-echo "NOTE: Windows instance public IP address is $WIN_IP"
+linux_ip="$(gcloud compute instances list \
+  --filter="name~'^${LINUX_PREFIX}.*' AND networkInterfaces.network:${VPC_NAME}" \
+  --format="value(networkInterfaces[0].accessConfigs[0].natIP)" \
+  --limit=1 2>/dev/null)"
+
+# ------------------------------------------------------------------------------
+# Quick Start Output
+# ------------------------------------------------------------------------------
+echo ""
+echo "============================================================================"
+echo "NFS\Filestore Quick Start - Validation Output (GCP)"
+echo "============================================================================"
+echo ""
+
+printf "%-28s %s\n" "NOTE: Windows RDP Host:" "${windows_ip:-<not found>}"
+printf "%-28s %s\n" "NOTE: NFS Gateway Host:"   "${linux_ip:-<not found>}"
+
+echo ""
