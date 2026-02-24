@@ -60,7 +60,7 @@ resource "google_secret_manager_secret_version" "admin_secret_version" {
 # ==============================================================================
 
 resource "google_compute_firewall" "allow_rdp" {
-  name    = "allow-rdp"
+  name    = "allow-rdp-filestore"
   network = var.vpc_name
 
   allow {
@@ -69,7 +69,7 @@ resource "google_compute_firewall" "allow_rdp" {
   }
 
   # Applies only to instances carrying this network tag.
-  target_tags = ["allow-rdp"]
+  target_tags = ["allow-rdp-filestore"]
 
   # Lab only; restrict for production.
   source_ranges = ["0.0.0.0/0"]
@@ -145,7 +145,7 @@ resource "google_compute_instance" "windows_ad_instance" {
   # Firewall Tags
   # - Applies the allow-rdp firewall rule to this VM.
   # ----------------------------------------------------------------------------
-  tags = ["allow-rdp"]
+  tags = ["allow-rdp-filestore"]
 }
 
 
