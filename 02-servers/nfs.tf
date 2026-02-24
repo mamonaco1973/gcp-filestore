@@ -78,7 +78,7 @@ resource "google_filestore_instance" "nfs_server" {
 # ==============================================================================
 
 resource "google_compute_firewall" "allow_nfs" {
-  name    = "allow-nfs"
+  name    = "allow-nfs-filestore"
   network = data.google_compute_network.ad_vpc.name
 
   allow {

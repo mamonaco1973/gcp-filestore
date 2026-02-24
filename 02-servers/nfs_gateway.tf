@@ -43,7 +43,7 @@ resource "random_string" "vm_suffix" {
 # ==============================================================================
 
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh"
+  name    = "allow-ssh-filestore"
   network = var.vpc_name
 
   allow {
@@ -52,7 +52,7 @@ resource "google_compute_firewall" "allow_ssh" {
   }
 
   # Tag-based targeting (applies only to instances with this tag).
-  target_tags = ["allow-ssh"]
+  target_tags = ["allow-ssh-filestore"]
 
   # Lab only; tighten for production.
   source_ranges = ["0.0.0.0/0"]
@@ -70,7 +70,7 @@ resource "google_compute_firewall" "allow_ssh" {
 # ==============================================================================
 
 resource "google_compute_firewall" "allow_smb" {
-  name    = "allow-smb"
+  name    = "allow-smb-filestore"
   network = var.vpc_name
 
   allow {
@@ -79,7 +79,7 @@ resource "google_compute_firewall" "allow_smb" {
   }
 
   # Tag-based targeting (applies only to instances with this tag).
-  target_tags = ["allow-smb"]
+  target_tags = ["allow-smb-filestore"]
 
   # Lab only; tighten for production.
   source_ranges = ["0.0.0.0/0"]
@@ -165,7 +165,7 @@ resource "google_compute_instance" "nfs_gateway_instance" {
   # - allow-ssh and allow-smb match rules in this file.
   # - allow-nfs is referenced but the firewall rule is defined elsewhere.
   # ----------------------------------------------------------------------------
-  tags = ["allow-ssh", "allow-nfs", "allow-smb"]
+  tags = ["allow-ssh-filestore", "allow-nfs-filestore", "allow-smb-filestore"]
 }
 
 
