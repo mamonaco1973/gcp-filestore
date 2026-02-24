@@ -49,7 +49,7 @@ linux_ip="$(gcloud compute instances list \
 # ------------------------------------------------------------------------------
 echo ""
 echo "============================================================================"
-echo "NFS\Filestore Quick Start - Validation Output (GCP)"
+echo "NFS Filestore Quick Start - Validation Output (GCP)"
 echo "============================================================================"
 echo ""
 
