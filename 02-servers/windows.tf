@@ -33,7 +33,7 @@ resource "random_password" "sysadmin_password" {
 }
 
 resource "google_secret_manager_secret" "sysadmin_secret" {
-  secret_id = "sysadmin-ad-credentials"
+  secret_id = "sysadmin-ad-credentials-nfs"
 
   replication {
     auto {}
