@@ -1,198 +1,183 @@
-# GCP Mini Active Directory with Filestore: SMB & NFS File Sharing
+# Filestore + Active Directory on GCP: NFS and Samba File Sharing
 
-This project extends the original **GCP Mini Active Directory** lab by integrating **Filestore** as a managed shared storage backend. Instead of relying only on local disks or standalone file servers, this solution demonstrates how to expose Filestore storage in two ways:  
+Shared file storage for Linux and Windows, backed by a **Filestore** NFS share
+and secured with a **mini-AD** domain. A Linux gateway mounts the share over
+NFS for home directories and a shared area, and re-shares it over **SMB**, so
+Windows VMs reach the same files as a mapped drive. Every login uses an AD
+account.
 
-1. **Direct NFS Mounts on Linux Clients** – Linux machines joined to the mini-AD domain mount Filestore via the NFS 3.0 or 4.1 protocol for scalable, POSIX-compliant storage.  
-2. **SMB Access via NFS Gateway** – Windows machines joined to the mini-AD domain connect to a Samba-based NFS gateway, which translates NFS exports from Filestore into SMB shares, enabling Active Directory authentication and group-based access.  
+| Piece | Where | Role |
+|---|---|---|
+| **NFS gateway** | `ad-subnet-filestore`, public IP | Ubuntu 24.04; joined to AD with SSSD; mounts the share as `/nfs` and `/home`; shares `/nfs` through Samba; SSH from the internet |
+| **Windows Server 2022** | `ad-subnet-filestore`, public IP | joined to AD; RSAT for managing users; maps the gateway's `nfs` share as `Z:` |
+| **mini-AD** (Samba DC) | `ad-subnet-filestore`, no public IP | users, groups, POSIX IDs, DNS, Kerberos |
+| **Filestore** | `us-central1-b`, private IP | Basic HDD instance `nfs-server`, 1 TiB share `filestore`, NFSv3 |
+| **Secret Manager** | global | AD admin and user passwords |
+| **Cloud NAT** | `us-central1` | outbound internet for the DC |
 
-The mini-AD environment (Samba 4 on Ubuntu) provides Active Directory authentication and DNS services. Filestore provides fully managed NFS storage tiers with flexible performance and capacity options. Together, they enable a hybrid setup where both Linux and Windows domain-joined clients can consume GCP-native storage seamlessly.  
+## Architecture
 
-![GCP diagram](gcp-filestore.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="architecture-dark.svg">
+  <img alt="An SSH client reaches the NFS gateway, an Ubuntu 24.04 VM, and an RDP client reaches a Windows Server 2022 VM beside it; both have public IPs in the same subnet as the domain controller. The gateway mounts a Basic HDD Filestore share over NFSv3, for /home and a shared /nfs area, and re-shares /nfs over SMB to the Windows VM as drive Z:. Both VMs read the AD join password from Secret Manager and join the mini-AD domain controller, which has no public IP and reaches the internet through Cloud NAT." src="architecture-light.svg">
+</picture>
 
-## ☁️ Filestore Service Tiers Overview
+Regenerate with `python3 make_diagram.py`.
 
-**Filestore** is Google Cloud’s managed **NFS** (Network Attached Storage): a shared file system exposed over NFS to your VMs and GKE clusters without you needing to run a fileserver yourself. You are billed for **provisioned capacity** (not used bytes), can scale capacity, and choose tiers based on your needs for cost, performance, and availability.
+- **`01-directory/`**: the VPC (`filestore-vpc`) with one subnet
+  (`ad-subnet-filestore`, 10.1.0.0/24), Cloud Router and Cloud NAT, the AD
+  passwords in Secret Manager, and the
+  [`module-gcp-mini-ad`](https://github.com/mamonaco1973/module-gcp-mini-ad)
+  Samba DC with users and POSIX attributes from `users.json`.
+- **`02-servers/`**: the Filestore instance, the NFS gateway and Windows VMs,
+  and their firewall rules.
 
----
+## Why a Samba gateway
 
-### ⚙️ Capacity Ranges (Min → Max)
+Filestore serves NFS only. Linux mounts it directly with POSIX ownership, but
+Windows can't use it with AD identities. The gateway mounts the share and
+serves the same directory over SMB. Samba runs in ADS mode with SSSD as its
+ID map backend, so a file written as `rpatel` on Linux is owned by
+`rpatel@mcloud.mikecloud.com` on Windows, with the same POSIX IDs from AD.
 
-| Tier | Minimum Size | Maximum Size | Scaling Increments | Location Type |
-| :--- | :--- | :--- | :--- | :--- |
-| **Basic HDD** | **1 TiB** | **63.9 TiB** | 1 GiB (Up only) | Zonal |
-| **Basic SSD** | **2.5 TiB** | **63.9 TiB** | 1 GiB (Up only) | Zonal |
-| **Zonal** | **1 TiB** | **100 TiB** | 256 GiB or 2.5 TiB | Zonal |
-| **Regional** | **1 TiB** | **100 TiB** | 256 GiB or 2.5 TiB | Regional |
-| **Enterprise** | **1 TiB** | **10 TiB** (per instance) | 256 GiB (Up or down) | Regional |
-| *Enterprise Multishare* | 1 TiB | Up to 80 shares (up to **320 TiB** total capacity) | 256 GiB | Regional |
+Basic HDD is the cheapest Filestore tier, with a 1 TiB minimum, and it speaks
+NFSv3 only. The Zonal, Regional and Enterprise tiers add NFSv4.1.
 
----
+## How the share works
 
-### 🔒 NFS Protocol Support
+1. At first boot the gateway's startup script mounts the Filestore share as
+   `/nfs`, and its `home` directory as `/home`, both over NFSv3. A flag file,
+   `/root/.nfs_provisioned`, stops the script from running again on later
+   boots.
+2. It reads the AD admin password from Secret Manager and joins the domain
+   with `realm join`. SSSD is set for short names (`jsmith`, not
+   `jsmith@mcloud.mikecloud.com`) and the POSIX IDs stored in AD, and SSH
+   allows password logins.
+3. Samba shares `/nfs` as `nfs` and each user's home as `homes`. New files are
+   group `mcloud-users`, mode `0770`. `/nfs` and `/nfs/data` are `0770`
+   `mcloud-users`; each home directory is `0700`.
+4. The gateway clones this repository into `/nfs/gcp-filestore`, so the share
+   has content from the start.
+5. The Windows VM's startup script reads the same secret, joins the domain,
+   allows `mcloud-users` to sign in over RDP, maps `\\<gateway IP>\nfs` as
+   `Z:` at every login, and reboots.
+6. Members of **`linux-admins`** get passwordless sudo on the gateway.
 
-| Tier | NFSv3 | NFSv4.1 | Key Differentiator |
-| :--- | :--- | :--- | :--- |
-| **Basic HDD/SSD** | ✅ Yes | ❌ No | Simplicity, compatibility (NFSv3 only) |
-| **Zonal** | ✅ Yes | ✅ Yes | Highest Zonal performance and NFSv4.1 features. |
-| **Regional** | ✅ Yes | ✅ Yes | Regional redundancy (high availability) with NFSv4.1 features. |
-| **Enterprise** | ✅ Yes | ✅ Yes | Highest availability (**multi-zone redundancy**) for mission-critical apps and NFSv4.1 features. |
+| User | Groups | sudo on the gateway |
+|---|---|---|
+| jsmith | mcloud-users, us, linux-admins, Domain Admins | yes |
+| edavis | mcloud-users, us | no |
+| rpatel | mcloud-users, india, linux-admins, Domain Admins | yes |
+| akumar | mcloud-users, india | no |
 
----
+| Group | gidNumber |
+|---|---|
+| mcloud-users | 10001 |
+| us | 10002 |
+| india | 10003 |
+| linux-admins | 10004 |
 
-### 💰 Minimal Deploy Size: Cost Comparison (Illustrative)
+## Firewall rules
 
-> These are illustrative monthly costs based on the minimum instance size and *approximate* public pricing for a typical US region (e.g., `us-central1`). **Actual costs vary by region.**
+```
+internet ─22, 445─▶ NFS gateway ─2049─▶ Filestore (private IP)
+internet ─3389────▶ Windows ─445─▶ NFS gateway (Z: is /nfs)
+```
 
-| Tier | Availability | **Minimum capacity** | **Approx $/GiB-month** | **Est. monthly @ min size** |
-| :--- | :--- | :---: | :---: | :---: |
-| **Basic HDD** | Zonal | **1 TiB** | ~**$0.20** | ~**$204.80** |
-| **Basic SSD** | Zonal | **2.5 TiB** | ~$0.30 | ~$768.00 |
-| **Zonal** (Default perf) | Zonal | **1 TiB** | ~**$0.28** | ~**$286.72** |
-| **Regional** (Default perf) | Regional | **1 TiB** | ~$0.45 | ~$460.80 |
-| **Enterprise** | Regional | **1 TiB** | ~$0.45 | ~$460.80 |
+| Rule | Port | Applies to |
+|---|---|---|
+| `allow-ssh-filestore` | tcp 22 | NFS gateway |
+| `allow-smb-filestore` | tcp 445 | NFS gateway |
+| `allow-rdp-filestore` | tcp 3389 | Windows |
+| `allow-nfs-filestore` | tcp/udp 2049 | every VM in the VPC |
 
-#### Key Cost Notes:
-
-* **Custom Performance (Zonal/Regional):** Selecting **Custom Performance** lowers the $/GiB-month charge but introduces two new hourly fees: a **per-instance hourly charge** and a **per-IOPS hourly charge**. The total cost will depend on the custom IOPS you provision.
-* **Basic Tiers:** The Basic tiers (HDD/SSD) often have a **per-GiB rate AND an hourly instance fee**, which is factored into the approximate blended $/GiB-month rate shown above.
-* **NFSv4.1:** To utilize features like **Kerberos/Active Directory integration** and stronger security, you must select **Zonal, Regional, or Enterprise**. Basic tiers are **NFSv3-only**.
+All four allow `0.0.0.0/0`; every login still needs an AD account. Filestore
+and the DC have no public address.
 
 ## Prerequisites
 
 * [A Google Cloud Account](https://console.cloud.google.com/)
-* [Install gcloud CLI](https://cloud.google.com/sdk/docs/install) 
-* [Install Latest Terraform](https://developer.hashicorp.com/terraform/install)
+* [Install gcloud CLI](https://cloud.google.com/sdk/docs/install)
+* [Install Terraform](https://developer.hashicorp.com/terraform/install)
+* [Install jq](https://jqlang.github.io/jq/download/)
 
-If this is your first time watching our content, we recommend starting with this video: [GCP + Terraform: Easy Setup](https://youtu.be/3spJpYX4f7I). It provides a step-by-step guide to properly configure Terraform, Packer, and the gcloud CLI.
+Put a service account key in the repository root as `credentials.json`.
+Terraform uses it, and `check_env.sh` activates it and runs `api_setup.sh`,
+which enables the Compute, Filestore, Secret Manager and other APIs the build
+needs. If this is your first time watching our content, we recommend starting
+with this video: [GCP + Terraform: Easy Setup](https://youtu.be/3spJpYX4f7I).
 
-## Download this Repository  
-
-Clone the repository from GitHub and move into the project directory:  
+## Deploy
 
 ```bash
 git clone https://github.com/mamonaco1973/gcp-filestore.git
 cd gcp-filestore
-```  
+./apply.sh       # 1: VPC + Cloud NAT + mini-AD + secrets  2: Filestore, gateway, Windows
+```
 
----
+Everything deploys to `us-central1`: the VMs in `us-central1-a`, Filestore in
+`us-central1-b`. After `apply.sh` finishes, the gateway needs a few minutes to
+mount the share and join the domain. The Windows VM takes longer, because it
+joins and then reboots.
 
-## Build the Code  
+`apply.sh` ends by running `validate.sh`, which prints the two hosts:
 
-Run [check_env](check_env.sh) to validate your environment, then run [apply](apply.sh) to provision the infrastructure.  
+```
+============================================================================
+NFS Filestore Quick Start - Validation Output (GCP)
+============================================================================
 
-```bash
-develop-vm:~/gcp-file-store$ ./apply.sh
-NOTE: Validating that required commands are in PATH.
-NOTE: gcloud is found in the current PATH.
-NOTE: terraform is found in the current PATH.
-NOTE: All required commands are available.
-NOTE: Checking Google Cloud CLI connection.
-NOTE: Successfully authenticated with GCP.
-Initializing provider plugins...
-Terraform has been successfully initialized!
-```  
-## Build Results
+NOTE: Windows RDP Host:      203.0.113.10
+NOTE: NFS Gateway Host:      203.0.113.20
+```
 
-When the deployment completes, the following resources are created:
+## Try it
 
-- **Networking**
-  - A **custom-mode VPC** with dedicated subnets for the domain controller, the NFS gateway, and client VMs
-  - **Firewall rules** for required AD/DC ports (e.g., 53 DNS, 88 Kerberos, 123 NTP, 135/445 RPC/SMB, dynamic RPC range) and **NFS (2049)** from trusted subnets to Filestore / gateway
-  - Internal DNS resolution provided by the Samba DC (with forwarders as configured)
+1. Get a user's password from Secret Manager:
 
-- **Security & Identity**
-  - **Secret Manager** entries for administrator and user credentials
-  - **Service accounts** and IAM bindings (least-privilege) for Compute Engine and Filestore access
-  - Required **Google APIs enabled** (Compute, Filestore, Secret Manager, etc.)
+   ```bash
+   gcloud secrets versions access latest --secret=rpatel-ad-credentials-nfs \
+     | jq -r .password
+   ```
 
-- **Active Directory Server**
-  - An **Ubuntu** Compute Engine VM running **Samba 4** as Domain Controller and DNS
-  - Configured **Kerberos realm** and **NetBIOS** name
-  - Administrator credentials stored in **Secret Manager**
-  - **User/group bootstrap** via Terraform template: `01-directory/scripts/users.json.template`
+   Each user has a `<user>-ad-credentials-nfs` secret; the domain admin is
+   `admin-ad-credentials-nfs`.
 
-- **Shared Storage (Filestore)**
-  - A **Filestore instance** with an exported share (e.g., `filestore`)
-  - Mount target reachable from the NFS gateway and (optionally) Linux clients
-  - Mounted on the gateway (e.g., `/nfs`) with POSIX ownership/permissions applied by init scripts
+2. SSH to the **NFS Gateway Host** as `rpatel`. Try `id`,
+   `getent group linux-admins`, `df -h /nfs /home` and `ls -l /nfs`.
 
-- **Client & Gateway Instances**
-  - **NFS Gateway (Linux):** Ubuntu VM **joined to the domain**, mounts Filestore, and **re-exports as SMB** via Samba for Windows clients  
-    - Bootstrapped by: `02-servers/scripts/nfs_gateway_init.sh`
-  - **Windows Client:** Windows Server VM **auto-joined to the domain** at first boot  
-    - Bootstrapped by: `02-servers/scripts/ad_join.ps1`
-  - Both paths authenticate against the **mini-AD** domain (Linux via NSS/SSSD + Kerberos, Windows via native AD)
+   ![Linux](linux.png)
 
+3. RDP to the **Windows RDP Host** as `MCLOUD\rpatel`. `Z:` is the gateway's
+   `/nfs`: the same `home` and `data` folders, and the cloned repository.
+   A folder's **Security** tab shows its owner as the AD user.
 
+   ![Windows](windows.png)
 
-## Users and Groups
+## Troubleshooting
 
-As part of this project a set of **users** and **groups** are automatically created through a scripted process. These resources are intended for **testing and demonstration purposes**, showcasing how to automate user and group provisioning in a mini Active Directory environment.
+| Symptom | Fix |
+|---|---|
+| SSH rejects every AD password | The gateway hasn't finished its domain join. `sudo journalctl -u google-startup-scripts` shows the startup script; `/root/join.log` has the `realm join` output. |
+| `/nfs` or `/home` isn't mounted | `grep filestore /etc/fstab`, then `sudo mount /nfs`. Check that the instance is `READY`: `gcloud filestore instances describe nfs-server --zone us-central1-b`. |
+| The startup script didn't run again after a change | It runs once; delete `/root/.nfs_provisioned` and reboot to rerun it. |
+| `Z:` is missing on Windows | The Windows VM joins the domain and reboots after deploy; give it time. The startup script's output is on the serial console: `gcloud compute instances get-serial-port-output <win-ad-vm> --zone us-central1-a`. The mapping runs from `map_drives.bat` in the all-users Startup folder at each login. |
+| Windows can't reach `\\<gateway IP>\nfs` | Samba runs on the gateway: `sudo systemctl status smbd winbind` there. |
+| `id <user>` finds nothing | The user needs `uidNumber`, `gidNumber` and `uid` set in AD. SSSD caches lookups; `sudo sss_cache -E` clears it. |
 
-### Groups Created
-
-| Group Name    | Group Category | Group Scope | gidNumber |
-|----------------|----------------|----------------|------------|
-| mcloud-users   | Security       | Universal     | 10001 |
-| india          | Security       | Universal     | 10002 |
-| us             | Security       | Universal     | 10003 |
-| linux-admins   | Security       | Universal     | 10004 |
-
-### Users Created and Group Memberships
-
-| Username | Full Name   | uidNumber | gidNumber | Groups Joined                    |
-|---------|------------|-----------|-----------|----------------------|
-| jsmith  | John Smith  | 10001 | 10001 | mcloud-users, us, linux-admins |
-| edavis  | Emily Davis | 10002 | 10001 | mcloud-users, us |
-| rpatel  | Raj Patel   | 10003 | 10001 | mcloud-users, india, linux-admins |
-| akumar  | Amit Kumar  | 10004 | 10001 | mcloud-users, india |
-
----
-
-
-### Understanding `uidNumber` and `gidNumber` for Linux Integration
-
-The **`uidNumber`** (User ID) and **`gidNumber`** (Group ID) attributes are critical when integrating **Active Directory** with **Linux systems**, particularly in environments where **SSSD** ([System Security Services Daemon](https://sssd.io/)) or similar services are used for identity management. These attributes allow Linux hosts to recognize and map Active Directory users and groups into the **POSIX** (Portable Operating System Interface) user and group model.
-
-
-### Log into Windows Instance  
-
-After the Windows instance boots, the [startup script](02-servers/scripts/ad_join.ps1) executes which does the following tasks   
-
-- Install Active Directory Administrative Tools   
-- Join EC2 Instance to Active Directory  
-- Grant RDP Access  
-- Final System Reboot  
-
-Administrator credentials are stored in the `admin_ad_credentials` secret.
-
-![Windows VM Instance](windows.png)
-
-### Log into Linux Instance  
-
-When the Linux instance boots, the [startup script](02-servers/scripts/nfs_gateway.sh) runs the following tasks:  
-
-- Update OS and install required packages  
-- Join the Active Directory domain with SSSD  
-- Enable password authentication for AD users  
-- Configure SSSD for AD integration  
-- Grant sudo privileges to the `linux-admins` group  
-- Configure instance as a Samba file gateway to NFS
-
-Linux user credentials are stored as secrets.
-
-![Linux VM Instance](linux.png) 
-
-## Clean Up  
-
-When finished, remove all resources with:  
+## Teardown
 
 ```bash
-./destroy.sh
-```  
+./destroy.sh     # destroys phase 2, then phase 1 (secrets included)
+```
 
-This uses Terraform to delete the VPC, Compute Engine instances, firewall rules, Secret Manager entries, and any other resources created by this project.  
+## Notes
 
----
-
-⚠️ **Reminder:** This project is for **labs and development only**. Do not use it in production.  
+- **Lab only.** SSH, RDP and SMB are open to the internet, jsmith and rpatel
+  are Domain Admins, and the join uses the domain admin account. The VMs run
+  as the same service account as Terraform, with the `cloud-platform` scope.
+  The Filestore export allows any address with `NO_ROOT_SQUASH`, and NFSv3
+  traffic isn't encrypted. Restrict the firewall rules and the export, use a
+  dedicated join account and a narrower VM service account for anything more.
+- Users, groups and POSIX IDs are defined in
+  `01-directory/scripts/users.json.template`.
